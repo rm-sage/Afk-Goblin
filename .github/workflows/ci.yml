@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -28,10 +30,47 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      # The Lua layer cannot be unit-tested -- it only runs inside the game
+      # process -- so a syntax check is the one automated guarantee available.
+      # Without it a typo ships and only surfaces as a dead plugin in-game.
+      - name: Install Lua and zstd
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 zstd
+      - name: Syntax-check every Lua file
+        run: find . -name '*.lua' -not -path './node_modules/*' -print0 | xargs -0 -n1 luac5.4 -p
+
+      - name: Assemble the plugin directory
+        run: |
+          mkdir -p plugin/app
+          cp bolt.json main.lua plugin/
+          cp -r lua plugin/
+          if [ -d modules ]; then cp -r modules plugin/; fi
+          cp -r dist/. plugin/app/
+
+      - name: Package and describe the release
+        id: package
+        run: |
+          version=$(node -p "require('./bolt.json').version")
+          mkdir -p pages
+          tarball="afkuav-v${version}.tar.zst"
+          # Bolt expects bolt.json at the archive root, so tar the contents of
+          # plugin/ rather than the directory itself.
+          tar --zstd -cf "pages/${tarball}" -C plugin .
+          sha=$(sha256sum "pages/${tarball}" | cut -d' ' -f1)
+          node -e "
+            const fs = require('fs');
+            fs.writeFileSync('pages/meta.json', JSON.stringify({
+              sha256: '${sha}',
+              version: '${version}',
+              url: 'https://rm-sage.github.io/AfkUAV/${tarball}',
+            }));
+          "
+          cat pages/meta.json
+
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main'
         with:
-          path: dist
+          path: pages
 
   deploy:
     needs: test

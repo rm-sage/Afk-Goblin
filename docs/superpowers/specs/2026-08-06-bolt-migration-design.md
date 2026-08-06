@@ -142,11 +142,12 @@ object per call. Lua has no built-in JSON, so vendor [`json.lua`](https://github
 **Lua → browser**
 
 ```jsonc
-// every master tick (600ms), only fields that changed since the last snapshot
-{ "t": "state", "tick": 1234, "now": 1754500000000,
+// every master tick (600ms), as a FULL snapshot — not a delta
+{ "t": "state", "tick": 1234,
   "clickIdleMs": 4200,          // since last mouse button
   "mouseIdleMs": 900,           // since last motion/scroll
   "focused": true,
+  "loggedIn": true,
   "stats":  { "hp": 0.28, "pray": 0.91, "sum": 1.0, "dren": 0.4 },  // 0..1, null if unreadable
   "buffs":  [ { "id": "overload", "timeLeft": 27, "stacks": 1 } ],
   "debuffs": [],
@@ -154,23 +155,43 @@ object per call. Lua has no built-in JSON, so vendor [`json.lua`](https://github
   "models": [ "enrichedspring" ],   // identified on screen this tick
   "craftProgress": 0.62 }           // null when no crafting menu
 
-{ "t": "chat", "lines": [ { "text": "…", "colors": [[255,255,255]], "fragments": ["…"] } ] }
-{ "t": "xp",   "skill": "div", "amount": 1200 }
-{ "t": "hello","apiVersion": [1,0], "character": "…" }
+{ "t": "chat",  "lines": [ { "text": "…", "colors": [[255,255,255]], "fragments": ["…"] } ] }
+{ "t": "xp",    "skill": "div", "amount": 1200 }
+{ "t": "hello", "apiVersion": [1,0], "character": "…" }
+{ "t": "config","data": "…" }     // the stored blob, handed over once at startup
 ```
 
-**Browser → Lua**
+Full snapshots, not deltas: at this size the saving is negligible and merge semantics would be a
+whole class of bug. It also lets "unreadable" be an explicit `null` rather than an absence, which is
+what `TriggerState.functional` needs to distinguish "not triggered" from "cannot see".
+
+**No clock crosses the bridge.** `bolt.time()` is monotonic *microseconds* from an arbitrary origin
+and wraps roughly hourly on a 32-bit CPU, so it is not a wall clock. Lua sends only durations, in
+milliseconds; the browser stamps its own `Date.now()`. This is the same trap as `rsLastActive` — a
+number that reads like a timestamp and is not one — and it is kept out by the shape of the protocol
+rather than by comment.
+
+**Absent means null.** Assigning `nil` to a Lua table field deletes the key, so anything Lua reports
+as unreadable arrives *absent*, never as an explicit null. The nullable fields (`stats`, `player`,
+`craftProgress`, `character`) therefore default to null in the schema. The required scalars
+deliberately do not: a missing `clickIdleMs` is a plugin bug and must fail loudly rather than decode
+as a plausible zero.
+
+**Browser → Lua**, by POST to `https://bolt-api/send-message` (body byte-for-byte):
 
 ```jsonc
 { "t": "highlight", "models": ["enrichedspring"] }  // which models to draw boxes around
 { "t": "flash" }                                    // bolt.flashwindow
-{ "t": "save", "name": "alerts.json", "data": "…" } // bolt.saveconfig
-{ "t": "close" }
+{ "t": "save", "data": "…" }                        // bolt.saveconfig
 ```
+
+Closing is *not* a message. CEF disables `window.close()`, so the page self-closes by requesting
+`https://bolt-api/close-request`, which fires `oncloserequest` in Lua.
 
 Config persistence stays on the Lua side via `bolt.loadconfig`/`bolt.saveconfig`, keyed by
 `bolt.characterid()` with a shared-default fallback — the pattern bolt-alerts uses. This replaces
-`localStorage`, which is not durable across plugin reinstalls.
+`localStorage`, which is not durable across plugin reinstalls. Lua stores the blob verbatim and
+never parses it, so the schema stays in one place.
 
 ### Changes to the TypeScript seam
 
@@ -287,10 +308,15 @@ Bolt installs a plugin from a `meta.json` URL carrying a version, a tarball URL 
 already-installed Ground Markers plugin serves its from
 `j3sven.github.io/bolt-groundmarkers/dist/meta.json`, so GitHub Pages is a proven host.
 
-The existing `.github/workflows/ci.yml` extends rather than gets replaced: after `npm run build`,
-add steps to assemble the plugin directory (`bolt.json`, `main.lua`, `lua/`, `modules/`, and the
-built `app/dist`), tar it, compute the sha256, emit `meta.json`, and publish all of it to Pages
-alongside the app. `npm run typecheck && npm test` stay exactly as they are.
+The archive format is **`.tar.zst`**, with `bolt.json` at the archive root — the format bolt-alerts
+and Ground Markers both ship. The existing `.github/workflows/ci.yml` extends rather than gets
+replaced: after `npm run build`, assemble the plugin directory (`bolt.json`, `main.lua`, `lua/`,
+`modules/`, and the built app at `app/`), tar it with zstd, compute the sha256, emit `meta.json`,
+and publish the tarball and `meta.json` to Pages. `npm run typecheck && npm test` stay as they are.
+
+CI also runs `luac -p` over every `.lua` file. The Lua layer cannot be unit-tested, so a syntax
+check is the only automated guarantee available on it; without one a typo ships and surfaces as a
+dead plugin in-game.
 
 `bolt.json` is the plugin manifest (`main`, `name`, `version`, `description`). Installation is then
 by pasting the `meta.json` URL into Bolt's plugin manager — replacing the current "open the URL
@@ -302,7 +328,7 @@ inside the Alt1 browser and press Add App" flow.
 AfkUAV/
   bolt.json                 # plugin manifest
   main.lua                  # entry: wiring only
-  lua/
+  lua/                      # required as "lua.bridge" etc — Bolt resolves dot paths from the root
     bridge.lua              # JSON framing, message dispatch, config persistence
     json.lua                # vendored rxi/json.lua (MIT)
     detect/
@@ -370,15 +396,12 @@ Step 9 (retire Alt1) is a decision, not a plan.
   that it is not undetectable. RS3 has no approved-client list. This is a real and unresolved
   difference in risk posture, accepted knowingly: Bolt is already installed with three plugins on
   autostart.
-- **Keyboard activity is invisible.** Bolt exposes no key events — Windows `hook_wndproc` sees
-  `WM_KEYDOWN` and passes it through; Linux enumerates `XCB_KEY_PRESS` and deliberately `break`s.
-  This is *not* a regression against Alt1, which is click-based (`rsLastActive`) with optional
-  polled mouse movement and no keyboard signal either. **Open question:** does RS3's idle-logout
-  timer count keypresses? If it does not, mouse-only detection is correct and there is nothing to
-  build. If it does, the options are a ~120-line patch to Bolt across six files (`event.h`,
-  `dll/main.c`, `so/main.c`, `plugin.c`, `plugin_api.c`, API version) plus a permanently
-  self-maintained Bolt build, or inferring keyboard activity from render-stream side effects.
-  Deferred pending an in-game test.
+- **Keyboard activity is invisible, and that is accepted.** Bolt exposes no key events. Activity is
+  therefore mouse-derived: clicks, motion and scroll. This is *not* a regression against Alt1, whose
+  `rsLastActive` is click-based with optional polled mouse movement and carries no keyboard signal
+  either — so inactivity behaviour matches or beats the current build. Adding key events would mean
+  patching and self-building Bolt; **out of scope, by decision, and not to be reopened as part of
+  this migration.**
 - **Model fragility.** Graphical updates break vertex-count fingerprints. Fail soft, verify against
   multiple vertices.
 - **In-process crashes.** A Lua error can take the game down. Defensive detection code; keep logic
