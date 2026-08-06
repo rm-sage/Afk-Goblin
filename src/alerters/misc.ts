@@ -22,7 +22,7 @@ export const dialogAlerter = defineAlerter<DialogVars>({
   create() {
     return {
       check(ctx: AlerterContext): TriggerState {
-        const open = ctx.readers.dialogOpen();
+        const open = ctx.state.dialogOpen;
         if (open === null) {
           return { triggered: false, bar: 0, functional: false };
         }
@@ -56,7 +56,7 @@ export const targetDeathAlerter = defineAlerter<TargetDeathVars>({
 
     return {
       check(ctx: AlerterContext): TriggerState {
-        const target = ctx.readers.target();
+        const target = ctx.state.target;
 
         if (target !== null && target.hp > 0) {
           sawLiveTarget = true;
@@ -122,13 +122,13 @@ export const dropsAlerter = defineAlerter<DropsVars>({
           return { triggered: false, bar: 0, functional: false };
         }
 
-        const drops = ctx.readers.newDrops();
+        const drops = ctx.state.newDrops;
         if (drops === null) {
           return { triggered, bar: triggered ? 1 : 0, functional: false };
         }
 
         // Both are "milliseconds since", so the smaller one happened later.
-        if (triggered && ctx.hasGameState && ctx.idleMs < ctx.now - triggeredAt + 1000) {
+        if (triggered && ctx.connected && ctx.idleMs < ctx.now - triggeredAt + 1000) {
           triggered = false;
         }
 

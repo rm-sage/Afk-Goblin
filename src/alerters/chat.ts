@@ -85,7 +85,7 @@ export const chatAlerter = defineAlerter<ChatVars>({
           return { triggered, bar: triggered ? 1 : 0, functional: false };
         }
 
-        if (triggered && vars.resetonactive && ctx.hasGameState) {
+        if (triggered && vars.resetonactive && ctx.connected) {
           // Both sides are "milliseconds since": idleMs since the last click, and
           // (now - triggeredAt) since this alert fired. The smaller value is the
           // more recent event, so a click that postdates the alert clears it.

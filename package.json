@@ -16,16 +16,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rm-sage/AfkUAV.git"
+    "url": "git+https://github.com/rm-sage/Afk-Goblin.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/rm-sage/AfkUAV/issues"
+    "url": "https://github.com/rm-sage/Afk-Goblin/issues"
   },
-  "homepage": "https://github.com/rm-sage/AfkUAV#readme",
+  "homepage": "https://github.com/rm-sage/Afk-Goblin#readme",
   "dependencies": {
     "alt1": "^0.1.3",
     "preact": "^10.29.8",

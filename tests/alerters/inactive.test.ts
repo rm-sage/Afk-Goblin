@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inactiveAlerter } from "~/alerters/inactive";
 import type { AlerterContext } from "~/engine/types";
-import { NULL_READERS } from "~/readers/bundle";
+import { NO_STATE } from "~/engine/types";
 
 function ctx(over: Partial<AlerterContext> = {}): AlerterContext {
   return {
@@ -10,11 +10,10 @@ function ctx(over: Partial<AlerterContext> = {}): AlerterContext {
     // Milliseconds SINCE the last click -- a duration, not a timestamp.
     idleMs: 0,
     mouseIdleMs: 0,
-    hasGameState: true,
+    connected: true,
     chatLines: [],
     chatAvailable: true,
-    readers: NULL_READERS,
-    geometry: null,
+    state: NO_STATE,
     ...over,
   };
 }
@@ -73,7 +72,7 @@ describe("inactiveAlerter", () => {
   // meaningless, and reporting "fine" would be a silent permanent failure.
   it("reports non-functional without the gamestate permission", () => {
     const a = inactiveAlerter.create({ delay: 10, countMouseMovement: false });
-    const r = a.check(ctx({ idleMs: 20_000, hasGameState: false }));
+    const r = a.check(ctx({ idleMs: 20_000, connected: false }));
     expect(r.functional).toBe(false);
     expect(r.triggered).toBe(false);
   });

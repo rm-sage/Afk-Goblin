@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bigXpAlerter, skillAliases, xpCounterAlerter } from "~/alerters/xpcounter";
 import type { AlerterContext } from "~/engine/types";
-import { NULL_READERS } from "~/readers/bundle";
+import { NO_STATE } from "~/engine/types";
 
 function ctx(
   xp: Record<string, number>,
@@ -13,11 +13,10 @@ function ctx(
     now,
     idleMs: 0,
     mouseIdleMs: 0,
-    hasGameState: true,
+    connected: true,
     chatLines: [],
     chatAvailable: true,
-    readers: { ...NULL_READERS, xp: (s) => xp[s] ?? null },
-    geometry: null,
+    state: { ...NO_STATE, xp },
     ...over,
   };
 }

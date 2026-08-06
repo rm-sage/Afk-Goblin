@@ -52,15 +52,14 @@ jobs:
           tar --zstd -cf "pages/${tarball}" \
             bolt.json main.lua lua app $([ -d modules ] && echo modules)
           sha=$(sha256sum "pages/${tarball}" | cut -d' ' -f1)
-          # NOTE: this host path is the GitHub Pages URL, which is derived from
-          # the REPOSITORY name, not the project name. It stays AfkUAV until the
-          # GitHub repo itself is renamed; update it in the same change.
+          # This host path is the GitHub Pages URL, derived from the REPOSITORY
+          # name — keep it in step with any future repo rename.
           node -e "
             const fs = require('fs');
             fs.writeFileSync('pages/meta.json', JSON.stringify({
               sha256: '${sha}',
               version: '${version}',
-              url: 'https://rm-sage.github.io/AfkUAV/${tarball}',
+              url: 'https://rm-sage.github.io/Afk-Goblin/${tarball}',
             }));
           "
           cat pages/meta.json

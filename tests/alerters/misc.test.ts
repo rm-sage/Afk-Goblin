@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dialogAlerter, dropsAlerter, targetDeathAlerter } from "~/alerters/misc";
 import type { AlerterContext } from "~/engine/types";
-import { NULL_READERS, type DropEvent, type TargetState } from "~/readers/bundle";
+import { NO_STATE, type DropEvent, type Target as TargetState } from "~/engine/types";
 
 function ctx(
   readers: Partial<typeof NULL_READERS>,
@@ -12,11 +12,10 @@ function ctx(
     now: 1_000_000,
     idleMs: 999_999,
     mouseIdleMs: 999_999,
-    hasGameState: true,
+    connected: true,
     chatLines: [],
     chatAvailable: true,
     readers: { ...NULL_READERS, ...readers },
-    geometry: null,
     ...over,
   };
 }

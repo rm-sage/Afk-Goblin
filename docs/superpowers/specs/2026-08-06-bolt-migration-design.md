@@ -161,6 +161,15 @@ object per call. Lua has no built-in JSON, so vendor [`json.lua`](https://github
 { "t": "config","data": "…" }     // the stored blob, handed over once at startup
 ```
 
+The master tick is driven by `onswapbuffers`, so it is coupled to **rendering**, not wall time. Two
+consequences, both verified in-game (P1.8):
+
+- A tick can be late by up to one frame interval. Observed 605ms unthrottled and 638ms with
+  backgrounded FPS capped at 15 (600 + one 66.7ms frame). Irrelevant against alerts measured in
+  seconds, but it means the tick is a floor, not a guarantee.
+- Ticks **continue while the game is minimised or unfocused**, which is the entire AFK use case.
+  Confirmed by watching the counter advance while minimised.
+
 Full snapshots, not deltas: at this size the saving is negligible and merge semantics would be a
 whole class of bug. It also lets "unreadable" be an explicit `null` rather than an absence, which is
 what `TriggerState.functional` needs to distinguish "not triggered" from "cannot see".

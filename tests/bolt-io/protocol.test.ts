@@ -163,6 +163,33 @@ describe("decodePluginMessage, on fields Lua omitted because they were nil", () 
     expect(msg.player).toBeNull();
   });
 
+  // Detection for these lands in Phase 2; until then Lua never sends them, and
+  // "not implemented" must decode as "cannot see" rather than as a false.
+  it("reads absent dialog, target and drops as unreadable", () => {
+    const msg = decodePluginMessage(frame(STATE));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.dialogOpen).toBeNull();
+    expect(msg.target).toBeNull();
+    expect(msg.newDrops).toBeNull();
+  });
+
+  it("decodes a target and drops when present", () => {
+    const msg = decodePluginMessage(
+      frame({
+        ...STATE,
+        dialogOpen: true,
+        target: { name: "Kree'arra", hp: 0.42 },
+        newDrops: [{ name: "Armadyl hilt", amount: 1 }],
+      }),
+    );
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.dialogOpen).toBe(true);
+    expect(msg.target).toEqual({ name: "Kree'arra", hp: 0.42 });
+    expect(msg.newDrops).toEqual([{ name: "Armadyl hilt", amount: 1 }]);
+  });
+
   it("reads absent buff and model lists as empty", () => {
     const { buffs: _b, debuffs: _d, models: _m, ...sparse } = STATE;
     const msg = decodePluginMessage(frame(sparse));

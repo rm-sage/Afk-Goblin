@@ -14,7 +14,7 @@ export function skillAliases(skill: string): string[] {
 
 function readXp(ctx: AlerterContext, skill: string): number | null {
   for (const alias of skillAliases(skill)) {
-    const xp = ctx.readers.xp(alias);
+    const xp = ctx.state.xp[alias] ?? null;
     if (xp !== null) return xp;
   }
   return null;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clockBasedAlerter, clockWindow } from "~/alerters/clockbased";
 import type { AlerterContext } from "~/engine/types";
-import { NULL_READERS } from "~/readers/bundle";
+import { NO_STATE } from "~/engine/types";
 
 const HOUR = 60 * 60 * 1000;
 /** An exact epoch hour boundary, when the event starts. */
@@ -13,11 +13,10 @@ function ctx(now: number): AlerterContext {
     now,
     idleMs: 0,
     mouseIdleMs: 0,
-    hasGameState: true,
+    connected: true,
     chatLines: [],
     chatAvailable: true,
-    readers: NULL_READERS,
-    geometry: null,
+    state: NO_STATE,
   };
 }
 

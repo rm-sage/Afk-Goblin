@@ -3,7 +3,6 @@ import type { ActiveAlerter, TickLoop } from "~/engine/loop";
 import type { AlerterBase, Preset, Settings } from "~/store/schema";
 import { importAfkWardenJson, type ImportIssue } from "~/import/afkwarden";
 import { toAfkWardenPreset } from "~/import/export";
-import type { AnchorHealth } from "~/readers/anchor";
 import { AlertEditor } from "~/ui/AlertEditor";
 import { SettingsDialog } from "~/ui/SettingsDialog";
 import { useDragList, type DragState } from "~/ui/useDragList";
@@ -17,6 +16,10 @@ export type PresetAction =
 
 export type AppProps = {
   loop: TickLoop;
+  /** Whether the Lua plugin is currently pushing state. */
+  connected: boolean;
+  /** Logged-in character's display name, or null in the lobby. */
+  characterName: string | null;
   presets: Preset[];
   activePreset: string | null;
   settings: Settings;
@@ -44,22 +47,24 @@ function useRepaint(ms = 200): void {
   }, [ms]);
 }
 
-function HealthPill({ health, boxes }: { health: AnchorHealth; boxes: number }) {
-  const label =
-    health.state === "ok"
-      ? `${boxes} chatbox${boxes === 1 ? "" : "es"}`
-      : health.state === "lost"
-        ? "no chatbox"
-        : "searching";
-
-  const title =
-    health.state === "ok"
-      ? `Monitoring ${boxes} chatbox${boxes === 1 ? "" : "es"}.` +
-        (health.lastInvalidation !== null ? ` Last re-anchored: ${health.lastInvalidation}.` : "")
-      : "Looking for a chatbox. Open one in game if chat alerts are not firing.";
+/**
+ * Whether the plugin is talking to us.
+ *
+ * Replaces the old chatbox-health pill. Under Alt1 that pill answered "can I
+ * still find the chatbox on screen?", a question Bolt makes meaningless: it
+ * reads the game's draw calls, so there is nothing to locate. The one thing
+ * that can now go wrong is the plugin going quiet, and that is what this shows.
+ */
+function HealthPill({ connected, character }: { connected: boolean; character: string | null }) {
+  const label = connected ? (character ?? "connected") : "no data";
+  const title = connected
+    ? character !== null
+      ? `Connected to the plugin, logged in as ${character}.`
+      : "Connected to the plugin. Not logged in."
+    : "Not receiving data from the plugin. Is it running?";
 
   return (
-    <span class={`health health--${health.state}`} title={title}>
+    <span class={`health health--${connected ? "ok" : "lost"}`} title={title}>
       <span class="health__dot" />
       {label}
     </span>
@@ -254,7 +259,7 @@ export function App(props: AppProps) {
   const [exporting, setExporting] = useState<Preset | null>(null);
   const [editing, setEditing] = useState<{ index: number | null } | null>(null);
 
-  const { loop, presets, activePreset, settings } = props;
+  const { loop, presets, activePreset, settings, connected, characterName } = props;
   const preset = presets.find((p) => p.name === activePreset) ?? null;
 
   const { drag, listRef, startDrag, shiftFor } = useDragList(props.onReorder);
@@ -312,7 +317,7 @@ export function App(props: AppProps) {
             </option>
           ))}
         </select>
-        <HealthPill health={loop.chatHealth} boxes={loop.chatBoxCount} />
+        <HealthPill connected={connected} character={characterName} />
       </header>
 
       <div class="subhdr">

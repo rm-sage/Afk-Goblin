@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { clamp01, defineAlerter, type AlerterContext, type TriggerState } from "~/engine/types";
-import { bestMatch } from "~/readers/buff-match";
-import { getNeedle } from "~/readers/needle-cache";
-import type { BuffSlot } from "~/readers/bundle";
+import {
+  clamp01,
+  defineAlerter,
+  type AlerterContext,
+  type BuffSlot,
+  type TriggerState,
+} from "~/engine/types";
 
 export const BuffTypeSchema = z.object({
   /** Known buff id, or "" when the user captured their own icon. */
@@ -77,26 +80,26 @@ export const buffsAlerter = defineAlerter<BuffVars>({
 
     return {
       check(ctx: AlerterContext): TriggerState {
-        if (vars.bufftype.imgstr.length === 0) {
+        // An alert imported from AfkWarden identifies its buff by a captured
+        // icon, which Bolt cannot use: buffs are matched against the game's own
+        // texture atlas and identified by name. Such an alert is not broken, it
+        // is UNMIGRATED -- so it reports "cannot see" rather than a confident
+        // "not triggered", and the editor offers a buff to pick. See P2.5.
+        if (vars.bufftype.buffid.length === 0) {
           return { triggered: false, bar: 0, functional: false };
         }
 
-        const needle = getNeedle(vars.bufftype.imgstr);
-        if (needle === null) {
+        if (!ctx.connected) {
           return { triggered: false, bar: 0, functional: false };
         }
 
-        const slots: BuffSlot[] | null = vars.bufftype.isdebuff
-          ? ctx.readers.debuffs()
-          : ctx.readers.buffs();
-        if (slots === null) {
-          return { triggered: false, bar: 0, functional: false };
-        }
+        const slots: readonly BuffSlot[] = vars.bufftype.isdebuff
+          ? ctx.state.debuffs
+          : ctx.state.buffs;
 
         let timeLeft = 0;
-        const match = bestMatch(needle, slots.map((s) => s.icon));
-        if (match !== null) {
-          const slot = slots[match.index]!;
+        const slot = slots.find((s) => s.id === vars.bufftype.buffid);
+        if (slot !== undefined) {
           if (slot.timeLeft !== null) {
             const compensated = compensateAbbreviation(slot.timeLeft);
             if (compensated === lastReadValue) {

@@ -31,7 +31,7 @@ function deps(over: Partial<LoopDeps> = {}): LoopDeps {
     now: () => 0,
     idleMs: () => 0,
     mouseIdleMs: () => 0,
-    hasGameState: () => true,
+    connected: () => true,
     geometry: new GeometryWatch(host()),
     capture: () => ({}),
     chat: pool(),

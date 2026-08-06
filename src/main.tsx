@@ -1,34 +1,11 @@
 import { render } from "preact";
-import { GeometryWatch } from "~/alt1-io/geometry";
-import {
-  captureRs,
-  hasGameState,
-  idleMs,
-  identify,
-  liveHost,
-  makeChatboxReader,
-  mixColor,
-  mousePosition,
-  currentWorld,
-  rsFocused,
-  setTooltip,
-  taskbarSetter,
-} from "~/alt1-io/host";
-import { MouseActivityWatch, hoverCountsAsActivity } from "~/alt1-io/activity";
-import {
-  actionbarReader,
-  buffReader,
-  dialogReader,
-  dropsReader,
-  targetReader,
-  xpReader,
-} from "~/alt1-io/readers";
-import { TickReaders } from "~/readers/bundle";
+import { listenForPlugin, sendToPlugin } from "~/bolt-io/host";
+import { SnapshotStore } from "~/bolt-io/snapshot";
+import { GameStateView } from "~/bolt-io/game-state";
 import { AlarmScheduler } from "~/alerting/alarm";
 import { SoundPlayer } from "~/alerting/player";
 import { SoundLibrary, labelFromFilename, resolveSound } from "~/alerting/sound-library";
-import { TaskbarBar, shouldSuppress, taskbarState } from "~/alerting/taskbar";
-import { ChatboxPool } from "~/readers/chatbox-pool";
+import { shouldSuppress } from "~/alerting/taskbar";
 import { TICK_MS, TickLoop } from "~/engine/loop";
 import { Store } from "~/store/storage";
 import { PresetSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
@@ -37,40 +14,28 @@ import { speak } from "~/alerting/speech";
 import { App, type PresetAction } from "~/ui/App";
 import "~/ui/styles.css";
 
-identify();
+// Subscribed at module scope, before render. Bolt queues messages sent before
+// the page loads and delivers them once it has, which is earlier than any effect
+// runs -- subscribing later drops the whole queue, handshake included.
+const snapshot = new SnapshotStore(() => Date.now());
+listenForPlugin(snapshot);
 
 const store = new Store();
 let presets: Preset[] = store.loadPresets();
 let settings: Settings = store.loadSettings();
 let activeName: string | null = store.loadActivePresetName() ?? presets[0]?.name ?? null;
 
-const chat = new ChatboxPool({ makeReader: makeChatboxReader, mixColor });
-// A located chatbox proves the game is genuinely on screen, so hovering counts
-// even while the game is unfocused -- which matches how RuneScape behaves.
-const mouse = new MouseActivityWatch(mousePosition, () => Date.now(), () =>
-  hoverCountsAsActivity(rsFocused(), chat.health.state === "ok"),
-);
-const readers = new TickReaders({
-  actionbar: actionbarReader(),
-  buffs: buffReader(false),
-  debuffs: buffReader(true),
-  xp: xpReader(),
-  dialog: dialogReader(),
-  target: targetReader(),
-  drops: dropsReader(),
-});
+const view = new GameStateView(snapshot);
 
 const loop = new TickLoop({
   now: () => Date.now(),
-  idleMs,
-  mouseIdleMs: () => mouse.idleMs,
-  hasGameState,
-  currentWorld,
+  idleMs: () => snapshot.state?.clickIdleMs ?? 0,
+  mouseIdleMs: () => snapshot.state?.mouseIdleMs ?? 0,
+  connected: () => snapshot.connected,
+  loggedIn: () => snapshot.state?.loggedIn ?? false,
   suppressWhenLoggedOut: () => settings.suppressWhenLoggedOut,
-  readers,
-  geometry: new GeometryWatch(liveHost),
-  capture: captureRs,
-  chat,
+  state: () => view.state,
+  chatLines: () => snapshot.drainChat(),
 });
 
 function activePreset(): Preset | null {
@@ -101,11 +66,7 @@ function missingSounds(): string[] {
     .filter((r) => r.kind === "missing")
     .map((r) => r.name);
 }
-const taskbar = new TaskbarBar(taskbarSetter());
-
-// Leave the RuneScape taskbar icon undecorated when the app closes.
 globalThis.addEventListener("beforeunload", () => {
-  taskbar.clear();
   player.stopAll();
 });
 
@@ -113,10 +74,14 @@ globalThis.addEventListener("beforeunload", () => {
 const spoken = new Set<string>();
 
 function dispatchAlerts(): void {
-  const focused = rsFocused();
+  // NOTE: `focused` is always false on Windows — Bolt reports it with GetFocus(),
+  // which only sees a focus window on the calling thread's message queue, and Lua
+  // runs on the render thread. This fails safe: activeSuppress defaults off, and
+  // a stuck-false focus means alerts are never suppressed rather than silenced.
+  const focused = snapshot.state?.focused ?? false;
   // Suppression keys off how recently you clicked, not focus: alt-tabbing to read
   // something is not the same as having stopped playing.
-  const quiet = shouldSuppress(settings.activeSuppress, idleMs(), focused);
+  const quiet = shouldSuppress(settings.activeSuppress, snapshot.state?.clickIdleMs ?? 0, focused);
   const suppressed = settings.muted || quiet;
   const tooltips: string[] = [];
 
@@ -130,17 +95,11 @@ function dispatchAlerts(): void {
   // `quiet` is passed as the suppression flag the scheduler already understands.
   player.apply(alarms.update(sources, settings, quiet));
 
-  taskbar.apply(
-    taskbarState(
-      loop.alerters.map((a) => ({
-        paused: a.config.paused,
-        triggered: a.state.triggered,
-        bar: a.state.bar,
-        exportbar: a.config.exportbar,
-      })),
-      settings.showTaskbarOverlay,
-    ),
-  );
+  // TODO(P1.5): the taskbar progress overlay and hover tooltip were Alt1 APIs
+  // with no Bolt equivalent. Bolt can draw surfaces into the game view instead,
+  // which would be a better home for both, but that is a design decision rather
+  // than a port — see the migration spec. Deliberately dropped for now, not
+  // silently forgotten.
 
   loop.alerters.forEach((a, i) => {
     const key = `${i}:${a.config.name}`;
@@ -154,12 +113,15 @@ function dispatchAlerts(): void {
     if (a.config.voice !== null && !suppressed) speak(a.config.voice, settings.volume);
   });
 
-  setTooltip(tooltips.join(" · "));
+  // Tooltip surface dropped with Alt1 — see the TODO above. Tooltips are still
+  // collected so nothing depends on them disappearing.
+  void tooltips;
 }
 
 function tick(): void {
-  // Poll before stepping so alerters see this tick's movement, not last tick's.
-  mouse.poll();
+  // Fold XP drops into the running totals before stepping, so alerters see this
+  // tick's gains rather than last tick's.
+  view.drainInto();
   loop.step();
   dispatchAlerts();
 }
@@ -171,6 +133,8 @@ function paint(): void {
   render(
     <App
       loop={loop}
+      connected={snapshot.connected}
+      characterName={snapshot.characterName}
       presets={presets}
       activePreset={activeName}
       settings={settings}

@@ -54,7 +54,7 @@ export const actionbarAlerter = defineAlerter<ActionbarVars>({
   create(vars) {
     return {
       check(ctx: AlerterContext): TriggerState {
-        const state = ctx.readers.actionbar();
+        const state = ctx.state.stats;
         if (state === null) {
           return { triggered: false, bar: 0, functional: false };
         }

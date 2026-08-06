@@ -43,6 +43,17 @@ export const PlayerSchema = z.object({
   z: z.number(),
 });
 
+export const TargetSchema = z.object({
+  name: z.string(),
+  /** Remaining health as a 0..1 fraction. */
+  hp: Fraction,
+});
+
+export const DropEventSchema = z.object({
+  name: z.string(),
+  amount: z.number(),
+});
+
 export const StateMessageSchema = z.object({
   t: z.literal("state"),
   tick: z.number().int().nonnegative(),
@@ -87,6 +98,15 @@ export const StateMessageSchema = z.object({
   /** Model ids identified on screen this tick. */
   models: z.array(z.string()).default([]),
   craftProgress: Fraction.nullable().default(null),
+  /**
+   * The next three have no detection yet — they land in Phase 2. They default to
+   * null rather than to a false or an empty list on purpose: "not implemented"
+   * has to read as "cannot see", so the alerters that depend on them report
+   * `functional: false` instead of confidently reporting nothing is happening.
+   */
+  dialogOpen: z.boolean().nullable().default(null),
+  target: TargetSchema.nullable().default(null),
+  newDrops: z.array(DropEventSchema).nullable().default(null),
 });
 
 /** Matches the engine's existing `ChatLine`: a line split into per-colour fragments. */
@@ -136,6 +156,9 @@ export const PluginMessageSchema = z.discriminatedUnion("t", [
 
 export type Stats = z.infer<typeof StatsSchema>;
 export type BuffSlot = z.infer<typeof BuffSlotSchema>;
+export type Player = z.infer<typeof PlayerSchema>;
+export type Target = z.infer<typeof TargetSchema>;
+export type DropEvent = z.infer<typeof DropEventSchema>;
 export type ChatLine = z.infer<typeof ChatLineSchema>;
 export type StateMessage = z.infer<typeof StateMessageSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;

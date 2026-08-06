@@ -1,24 +1,61 @@
 import type { ZodType } from "zod";
-import type { RsGeometry } from "~/alt1-io/geometry";
-import type { ReaderAccess } from "~/readers/bundle";
+import type { BuffSlot, ChatLine, DropEvent, Player, Stats, Target } from "~/bolt-io/protocol";
 import type { FieldSpec } from "~/engine/fields";
 
 export type RGB = [number, number, number];
 
-export type ChatLine = {
-  text: string;
+export type { BuffSlot, ChatLine, DropEvent, Stats, Target };
+
+/**
+ * Everything the plugin can currently see, as plain data.
+ *
+ * This replaces the old pull-based `ReaderAccess`. Under Alt1 each accessor
+ * triggered OCR against a screenshot, so reads were lazy and memoized per tick;
+ * Bolt pushes a full snapshot instead, so there is nothing to defer and nothing
+ * to memoize. Fields, not methods.
+ *
+ * `null` consistently means "could not be read", which is distinct from a zero
+ * or an empty list, and is what lets `TriggerState.functional` stay honest.
+ */
+export interface GameState {
+  /** Action bar resource levels, each 0..1, or null when unreadable. */
+  stats: Stats | null;
+  buffs: readonly BuffSlot[];
+  debuffs: readonly BuffSlot[];
+  /** Player position in world coordinates, or null when not in-game. */
+  player: { x: number; y: number; z: number } | null;
+  /** Ids of tracked 3D models identified on screen this tick. */
+  models: readonly string[];
+  craftProgress: number | null;
   /**
-   * Distinct colours present in the line.
-   *
-   * A chat line is not one colour — the reader splits it into per-colour
-   * fragments, so a message can be white with a coloured name or item in it.
-   * Matching against every colour present is what stops a filter from missing a
-   * line whose relevant part is not the first fragment.
+   * Cumulative XP per skill code, accumulated from XP drops since the session
+   * began. Absolute values are meaningless; alerters diff successive readings,
+   * which is exactly what the Alt1 reader supported and why this shape is kept.
    */
-  colors: RGB[];
-  /** Per-colour fragments of the line, as the chatbox reader splits them. */
-  fragments: string[];
+  xp: Readonly<Record<string, number>>;
+  /** True when a dialog with a continue button is on screen; null if unreadable. */
+  dialogOpen: boolean | null;
+  /** The currently targeted mob, or null when there is none or it cannot be read. */
+  target: Target | null;
+  /** Drops seen since the previous tick, or null when unreadable. */
+  newDrops: readonly DropEvent[] | null;
+}
+
+/** A state that reports nothing readable. Used before the plugin connects, and in tests. */
+export const NO_STATE: GameState = {
+  stats: null,
+  buffs: [],
+  debuffs: [],
+  player: null,
+  models: [],
+  craftProgress: null,
+  xp: {},
+  dialogOpen: null,
+  target: null,
+  newDrops: null,
 };
+
+export type { Player };
 
 /**
  * Everything an alerter is allowed to see on a tick.
@@ -31,36 +68,42 @@ export interface AlerterContext {
   /** Wall-clock ms, injected rather than read from Date.now() so tests control time. */
   now: number;
   /**
-   * Milliseconds SINCE the last click in the RS window -- a DURATION, not a
-   * timestamp. This mirrors `alt1.rsLastActive`, whose name reads like a timestamp
-   * and is not one; treating it as an epoch value makes every inactivity alert fire
-   * permanently. The name here says what the number actually is.
+   * Milliseconds SINCE the last click on the game window -- a DURATION, not a
+   * timestamp. Alt1's `rsLastActive` had the same meaning under a name that reads
+   * like a timestamp; treating it as an epoch value makes every inactivity alert
+   * fire permanently. The name here says what the number actually is.
    *
-   * Requires the Gamestate permission; see `hasGameState`.
+   * Now derived from Bolt's `onmousebutton`, so it is event-driven and exact.
    */
   idleMs: number;
   /**
-   * Milliseconds since the in-game cursor last moved.
+   * Milliseconds since the mouse last moved or scrolled over the game window.
    *
-   * RuneScape counts mouse movement over the client as activity, but Alt1's
-   * `rsLastActive` only measures clicks. Alerts that want to match what the game
-   * actually considers idle can combine the two.
+   * RuneScape counts movement over the client as activity, not just clicks.
+   * Under Alt1 this had to be recovered by polling `alt1.mousePosition`, which
+   * reported hovers for the client RECTANGLE regardless of what was covering it.
+   * Bolt hooks the game's real event stream, so if the event arrived the game
+   * received it, and the occlusion problem does not exist.
    */
   mouseIdleMs: number;
-  /** False when the Gamestate permission is missing, which makes both idle values meaningless. */
-  hasGameState: boolean;
+  /**
+   * Whether the plugin is currently talking to us.
+   *
+   * False before the first snapshot and after the stream goes stale, which makes
+   * every reading meaningless. Replaces Alt1's `hasGameState` permission check.
+   */
+  connected: boolean;
   /** Deduped union of new lines across every monitored chatbox this tick. */
   chatLines: readonly ChatLine[];
   /**
-   * Whether a chatbox is currently located.
+   * Whether chat is currently readable.
    *
    * Without this a chat alert cannot tell "no matching message" from "I cannot
    * see the chatbox at all", and would report itself healthy while blind.
    */
   chatAvailable: boolean;
-  /** Pull-based, per-tick-memoized access to the screen readers. */
-  readers: ReaderAccess;
-  geometry: RsGeometry | null;
+  /** Everything else the plugin can see this tick, as plain data. */
+  state: GameState;
 }
 
 export type TriggerState = {

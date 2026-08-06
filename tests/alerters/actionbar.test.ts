@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { actionbarAlerter } from "~/alerters/actionbar";
 import type { AlerterContext } from "~/engine/types";
-import { NULL_READERS, type ActionbarState } from "~/readers/bundle";
+import { NO_STATE, type Stats as ActionbarState } from "~/engine/types";
 
 function ctx(bar: ActionbarState | null, over: Partial<AlerterContext> = {}): AlerterContext {
   return {
@@ -9,11 +9,10 @@ function ctx(bar: ActionbarState | null, over: Partial<AlerterContext> = {}): Al
     now: 0,
     idleMs: 0,
     mouseIdleMs: 0,
-    hasGameState: true,
+    connected: true,
     chatLines: [],
     chatAvailable: true,
-    readers: { ...NULL_READERS, actionbar: () => bar },
-    geometry: null,
+    state: { ...NO_STATE, stats: bar },
     ...over,
   };
 }

@@ -1,15 +1,13 @@
-import type { GeometryWatch } from "~/alt1-io/geometry";
-import type { ChatboxPool } from "~/readers/chatbox-pool";
-import type { AnchorHealth } from "~/readers/anchor";
-import { NULL_READERS, type TickReaders } from "~/readers/bundle";
 import { getAlerterModule } from "~/engine/registry";
 import { loginGate } from "~/engine/login-gate";
 import type { AlerterBase } from "~/store/schema";
 import {
   IDLE,
+  NO_STATE,
   type AlerterContext,
   type AlerterRuntime,
-  type RGB,
+  type ChatLine,
+  type GameState,
   type TriggerState,
 } from "~/engine/types";
 
@@ -27,21 +25,20 @@ export type ActiveAlerter = {
 
 export type LoopDeps = {
   now: () => number;
-  /** Milliseconds since the last RS click. A duration, not a timestamp. */
+  /** Milliseconds since the last click on the game window. A duration, not a timestamp. */
   idleMs: () => number;
-  /** Milliseconds since the in-game cursor last moved. */
+  /** Milliseconds since the mouse last moved or scrolled over the game window. */
   mouseIdleMs: () => number;
-  hasGameState: () => boolean;
-  /** Alt1's reported world; -1 means logged out or in the lobby. */
-  currentWorld?: () => number;
+  /** Whether the plugin is currently pushing state. */
+  connected: () => boolean;
+  /** Whether a character is logged in; false in the lobby. */
+  loggedIn: () => boolean;
   /** Whether the logged-out gate is enabled. */
   suppressWhenLoggedOut?: () => boolean;
-  /** Screen readers other than chat. Defaults to reporting nothing. */
-  readers?: TickReaders;
-  geometry: GeometryWatch;
-  /** Returns the single shared capture for this tick, or null when unavailable. */
-  capture: () => unknown | null;
-  chat: ChatboxPool;
+  /** The latest pushed snapshot. Defaults to reporting nothing. */
+  state?: () => GameState;
+  /** New chat lines since the previous tick. Draining is the caller's job. */
+  chatLines?: () => readonly ChatLine[];
 };
 
 /** Build a runtime for a stored alerter, or null when its type is unimplemented/invalid. */
@@ -80,12 +77,11 @@ export function instantiate(config: AlerterBase): ActiveAlerter {
 /**
  * The master tick.
  *
- * Takes exactly one screen capture per step and shares it with every reader --
- * capturing per reader is what makes naive multi-reader designs expensive.
- *
- * Crucially, a geometry change invalidates readers. AfkWarden never does this,
- * which is why a single window resize silently breaks every alert it owns until
- * the app is restarted.
+ * Reads the latest snapshot pushed from the plugin and hands it to every
+ * alerter as plain data. There is no capture, no reader positions and no
+ * geometry to invalidate: the whole self-healing-anchor apparatus that existed
+ * to survive a window resize is gone, because nothing is located by searching a
+ * screenshot any more.
  */
 export class TickLoop {
   tick = 0;
@@ -97,44 +93,16 @@ export class TickLoop {
     this.alerters = configs.map(instantiate);
   }
 
-  /** Reader health, surfaced so the UI can show it rather than hiding it in a log. */
-  get chatHealth(): AnchorHealth {
-    return this.deps.chat.health;
-  }
-
-  get chatBoxCount(): number {
-    return this.deps.chat.boxCount;
-  }
-
-  /** Colour union across every active chat alerter. Recomputed each tick by design. */
-  #chatColors(): RGB[] {
-    const out: RGB[] = [];
-    const seen = new Set<string>();
-    for (const a of this.alerters) {
-      if (a.config.type !== "chat" || a.config.paused || a.runtime === null) continue;
-      const colors = a.config.vars.colors;
-      if (!Array.isArray(colors)) continue;
-      for (const c of colors as RGB[]) {
-        const key = `${c[0]},${c[1]},${c[2]}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(c);
-      }
-    }
-    return out;
-  }
-
   /** Set when every alert is being held, e.g. because the player is logged out. */
   heldReason: string | null = null;
 
   step(): void {
     this.tick++;
 
+    const connected = this.deps.connected();
+
     const gate = loginGate(
-      {
-        world: this.deps.currentWorld?.() ?? -1,
-        hasGameState: this.deps.hasGameState(),
-      },
+      { loggedIn: this.deps.loggedIn(), connected },
       this.deps.suppressWhenLoggedOut?.() ?? false,
     );
 
@@ -150,26 +118,17 @@ export class TickLoop {
     }
     this.heldReason = null;
 
-    if (this.deps.geometry.poll()) {
-      // Resize or UI-scale change: every cached reader position is now suspect.
-      this.deps.chat.invalidate("geometry-change");
-      this.deps.readers?.invalidateAll("geometry-change");
-    }
-
-    const img = this.deps.capture();
-    this.deps.readers?.beginTick(this.tick, img);
-    const chatLines = img === null ? [] : this.deps.chat.update(this.tick, img, this.#chatColors());
-
     const ctx: AlerterContext = {
       tick: this.tick,
       now: this.deps.now(),
       idleMs: this.deps.idleMs(),
       mouseIdleMs: this.deps.mouseIdleMs(),
-      hasGameState: this.deps.hasGameState(),
-      chatLines,
-      chatAvailable: this.deps.chat.health.state === "ok",
-      readers: this.deps.readers ?? NULL_READERS,
-      geometry: this.deps.geometry.current,
+      connected,
+      chatLines: this.deps.chatLines?.() ?? [],
+      // Chat is readable whenever the plugin is talking to us: Bolt reads the
+      // draw calls, so there is no chatbox to locate and nothing to lose track of.
+      chatAvailable: connected,
+      state: this.deps.state?.() ?? NO_STATE,
     };
 
     for (const a of this.alerters) {

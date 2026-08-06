@@ -44,7 +44,7 @@ export const inactiveAlerter = defineAlerter<InactiveVars>({
       check(ctx: AlerterContext): TriggerState {
         // Without Gamestate, idleMs carries no information. Say so rather than
         // reporting a confident "not idle" that would never fire.
-        if (!ctx.hasGameState) {
+        if (!ctx.connected) {
           return { triggered: false, bar: 0, functional: false };
         }
 
