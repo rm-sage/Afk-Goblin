@@ -1,26 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { GeometryWatch, type Alt1Host } from "~/alt1-io/geometry";
-import { ChatboxPool, type ChatPos } from "~/readers/chatbox-pool";
 import { TickLoop, instantiate, type LoopDeps } from "~/engine/loop";
 import { AlerterBaseSchema, type AlerterBase } from "~/store/schema";
-import type { ChatLine, RGB } from "~/engine/types";
-
-function host(over: Partial<Alt1Host> = {}): Alt1Host {
-  return { rsX: 0, rsY: 0, rsWidth: 1920, rsHeight: 1080, rsScaling: 1, rsLinked: true, ...over };
-}
-
-function pool(lines: ChatLine[] = []): ChatboxPool {
-  const rect = { x: 0, y: 0, width: 400, height: 120 };
-  const pos: ChatPos = { mainbox: { rect }, boxes: [{ rect }] };
-  return new ChatboxPool({
-    makeReader: () => ({
-      pos: null,
-      readargs: { colors: [] },
-      find: () => pos,
-      read: () => lines,
-    }),
-  });
-}
+import { NO_STATE, type ChatLine } from "~/engine/types";
 
 function alerter(over: Partial<AlerterBase> & { type: string }): AlerterBase {
   return AlerterBaseSchema.parse({ name: "a", ...over });
@@ -32,11 +13,15 @@ function deps(over: Partial<LoopDeps> = {}): LoopDeps {
     idleMs: () => 0,
     mouseIdleMs: () => 0,
     connected: () => true,
-    geometry: new GeometryWatch(host()),
-    capture: () => ({}),
-    chat: pool(),
+    loggedIn: () => true,
+    state: () => NO_STATE,
+    chatLines: () => [],
     ...over,
   };
+}
+
+function line(text: string, colors: [number, number, number][] = []): ChatLine {
+  return { text, colors, fragments: [] };
 }
 
 describe("instantiate", () => {
@@ -62,38 +47,10 @@ describe("instantiate", () => {
 });
 
 describe("TickLoop", () => {
-  it("takes exactly one capture per step", () => {
-    const capture = vi.fn(() => ({}));
-    const loop = new TickLoop(deps({ capture }));
-    loop.setAlerters([
-      alerter({ type: "inactive", vars: { delay: 1 } }),
-      alerter({ type: "chat", vars: { lines: [{ text: "hi", percent: 100 }], colors: [] } }),
-    ]);
-    loop.step();
-    expect(capture).toHaveBeenCalledTimes(1);
-  });
-
-  it("invalidates readers when geometry changes", () => {
-    const h = host();
-    const chat = pool();
-    const spy = vi.spyOn(chat, "invalidate");
-    const loop = new TickLoop(deps({ geometry: new GeometryWatch(h), chat }));
-    loop.setAlerters([]);
-
-    loop.step(); // first poll always reports change
-    spy.mockClear();
-
-    loop.step();
-    expect(spy).not.toHaveBeenCalled();
-
-    h.rsWidth = 1280;
-    loop.step();
-    expect(spy).toHaveBeenCalledWith("geometry-change");
-  });
-
-  it("fires a chat alerter from pooled lines", () => {
-    const chat = pool([{ text: "A Seren spirit appears", colors: [[0, 255, 255]], fragments: [] }]);
-    const loop = new TickLoop(deps({ chat }));
+  it("fires a chat alerter from pushed lines", () => {
+    const loop = new TickLoop(
+      deps({ chatLines: () => [line("A Seren spirit appears", [[0, 255, 255]])] }),
+    );
     loop.setAlerters([
       alerter({
         type: "chat",
@@ -105,8 +62,9 @@ describe("TickLoop", () => {
   });
 
   it("skips paused alerters", () => {
-    const chat = pool([{ text: "A Seren spirit appears", colors: [[0, 255, 255]], fragments: [] }]);
-    const loop = new TickLoop(deps({ chat }));
+    const loop = new TickLoop(
+      deps({ chatLines: () => [line("A Seren spirit appears", [[0, 255, 255]])] }),
+    );
     loop.setAlerters([
       alerter({
         type: "chat",
@@ -150,42 +108,53 @@ describe("TickLoop", () => {
     expect(check).toHaveBeenCalledTimes(1);
   });
 
-  it("passes the union of chat colours to the pool each tick", () => {
-    const chat = pool();
-    const spy = vi.spyOn(chat, "update");
-    const loop = new TickLoop(deps({ chat }));
-    loop.setAlerters([
-      alerter({ type: "chat", vars: { lines: [{ text: "a", percent: 100 }], colors: [[1, 2, 3]] } }),
-      alerter({
-        type: "chat",
-        vars: { lines: [{ text: "b", percent: 100 }], colors: [[1, 2, 3], [4, 5, 6]] },
+  // Chat lines are drained by the caller, so a line pushed on one tick must not
+  // be re-evaluated on the next. Draining is what makes an alert fire once.
+  it("only sees each chat line on the tick it arrives", () => {
+    let pending: ChatLine[] = [line("A Seren spirit appears", [[0, 255, 255]])];
+    const loop = new TickLoop(
+      deps({
+        chatLines: () => {
+          const out = pending;
+          pending = [];
+          return out;
+        },
       }),
-    ]);
-    loop.step();
-
-    expect(spy.mock.calls[0]![2] as RGB[]).toEqual([[1, 2, 3], [4, 5, 6]]);
-  });
-
-  it("excludes paused alerters from the colour union", () => {
-    const chat = pool();
-    const spy = vi.spyOn(chat, "update");
-    const loop = new TickLoop(deps({ chat }));
+    );
     loop.setAlerters([
       alerter({
         type: "chat",
-        paused: true,
-        vars: { lines: [{ text: "a", percent: 100 }], colors: [[9, 9, 9]] },
+        vars: { lines: [{ text: "Seren spirit", percent: 100 }], colors: [[0, 255, 255]] },
       }),
-      alerter({ type: "chat", vars: { lines: [{ text: "b", percent: 100 }], colors: [[1, 2, 3]] } }),
     ]);
-    loop.step();
 
-    expect(spy.mock.calls[0]![2]).toEqual([[1, 2, 3]]);
+    loop.step();
+    expect(loop.triggered()).toHaveLength(1);
   });
 
-  it("survives a failed capture", () => {
-    const loop = new TickLoop(deps({ capture: () => null }));
+  it("holds every alert and clears its state while logged out", () => {
+    const loop = new TickLoop(
+      deps({ loggedIn: () => false, suppressWhenLoggedOut: () => true }),
+    );
     loop.setAlerters([alerter({ type: "inactive", vars: { delay: 1 } })]);
-    expect(() => loop.step()).not.toThrow();
+
+    loop.step();
+
+    expect(loop.heldReason).toMatch(/logged out|lobby/i);
+    expect(loop.triggered()).toHaveLength(0);
+    expect(loop.alerters[0]!.state.functional).toBe(false);
+  });
+
+  // Not knowing must never be treated as knowing: with no data from the plugin,
+  // holding every alert would silence exactly what the app exists to catch.
+  it("does not hold alerts when the plugin is not connected", () => {
+    const loop = new TickLoop(
+      deps({ connected: () => false, loggedIn: () => false, suppressWhenLoggedOut: () => true }),
+    );
+    loop.setAlerters([alerter({ type: "inactive", vars: { delay: 1 } })]);
+
+    loop.step();
+
+    expect(loop.heldReason).toBeNull();
   });
 });

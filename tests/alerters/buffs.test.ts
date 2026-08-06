@@ -59,8 +59,10 @@ describe("buffsAlerter", () => {
     expect(a.check(c).triggered).toBe(true);
   });
 
+  // Deliberately under 60s so compensateAbbreviation leaves the value alone —
+  // above that it adds a whole minute back and the bar reads very differently.
   it("fills the progress bar as the buff runs down", () => {
-    expect(make({ starttime: 100 }).check(ctx([slot("overload", 75)])).bar).toBeCloseTo(0.25, 5);
+    expect(make({ starttime: 100 }).check(ctx([slot("overload", 40)])).bar).toBeCloseTo(0.6, 5);
   });
 
   // An alert imported from AfkWarden identifies its buff by a captured icon,
