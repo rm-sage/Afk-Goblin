@@ -12,7 +12,10 @@ local bridge = require("lua.bridge")
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
 
-local UI_URL = "plugin://app/index.html"
+-- TODO(P1.4): flip to app/index.html once the engine seam consumes the bridge.
+-- Until then the app still reads Alt1 and would show nothing but empty state,
+-- whereas the probe exercises the bridge and reports what actually arrived.
+local UI_URL = "plugin://app/probe.html"
 
 local browser = bolt.createembeddedbrowser(0, 0, 480, 640, UI_URL)
 local link = bridge.new(browser)

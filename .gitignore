@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# Built UI. The repo root doubles as the Bolt plugin directory, so the build
+# lands here and main.lua serves it from plugin://app/index.html.
+app/
+pages/
 .vite/
 *.tsbuildinfo
 coverage/

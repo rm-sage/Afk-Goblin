@@ -39,23 +39,18 @@ jobs:
       - name: Syntax-check every Lua file
         run: find . -name '*.lua' -not -path './node_modules/*' -print0 | xargs -0 -n1 luac5.4 -p
 
-      - name: Assemble the plugin directory
-        run: |
-          mkdir -p plugin/app
-          cp bolt.json main.lua plugin/
-          cp -r lua plugin/
-          if [ -d modules ]; then cp -r modules plugin/; fi
-          cp -r dist/. plugin/app/
-
       - name: Package and describe the release
         id: package
         run: |
           version=$(node -p "require('./bolt.json').version")
           mkdir -p pages
           tarball="afkuav-v${version}.tar.zst"
-          # Bolt expects bolt.json at the archive root, so tar the contents of
-          # plugin/ rather than the directory itself.
-          tar --zstd -cf "pages/${tarball}" -C plugin .
+          # The repo root is already the plugin layout -- bolt.json, main.lua,
+          # lua/ and the built app/ -- so there is nothing to assemble. Bolt
+          # expects bolt.json at the archive root, hence the explicit file list
+          # rather than tarring a wrapper directory.
+          tar --zstd -cf "pages/${tarball}" \
+            bolt.json main.lua lua app $([ -d modules ] && echo modules)
           sha=$(sha256sum "pages/${tarball}" | cut -d' ' -f1)
           node -e "
             const fs = require('fs');
