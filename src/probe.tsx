@@ -79,8 +79,8 @@ function Probe() {
         <strong style={`color: ${store.connected ? "#2e7d32" : "#c62828"}`}>
           {store.connected ? "CONNECTED" : "NO DATA"}
         </strong>
-        {"  character="}
-        {store.character ?? "(none)"}
+        {"  name="}
+        {store.characterName ?? "(none)"}
         {"  api="}
         {store.apiVersion === null ? "(no handshake)" : store.apiVersion.join(".")}
       </p>

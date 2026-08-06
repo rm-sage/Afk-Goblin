@@ -9,7 +9,7 @@ const STATE = {
   mouseIdleMs: 0,
   focused: true,
   loggedIn: true,
-  character: "Sage",
+  characterName: "Sage",
 };
 
 function content(value: unknown): ArrayBuffer {
@@ -31,7 +31,7 @@ describe("listenForPlugin", () => {
 
     post({ type: "pluginMessage", content: content(STATE) });
 
-    expect(store.character).toBe("Sage");
+    expect(store.characterName).toBe("Sage");
   });
 
   // Bolt sends screen captures over the same channel. Reading one as a plugin
@@ -41,7 +41,7 @@ describe("listenForPlugin", () => {
 
     post({ type: "screenCapture", width: 2, height: 2, content: content(STATE) });
 
-    expect(store.character).toBeNull();
+    expect(store.characterName).toBeNull();
     expect(store.connected).toBe(false);
   });
 
@@ -67,6 +67,6 @@ describe("listenForPlugin", () => {
 
     post({ type: "pluginMessage", content: content(STATE) });
 
-    expect(store.character).toBeNull();
+    expect(store.characterName).toBeNull();
   });
 });

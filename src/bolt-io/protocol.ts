@@ -60,12 +60,17 @@ export const StateMessageSchema = z.object({
   focused: z.boolean(),
   loggedIn: z.boolean(),
   /**
-   * The logged-in character, or null in the lobby.
+   * The logged-in character's DISPLAY name, or null in the lobby.
+   *
+   * Deliberately the name and not `bolt.characterid()`. The id is an opaque
+   * hash that Bolt's own docs ask callers to treat as private, and it is what
+   * names the on-disk config file — right for keying storage, wrong to put in
+   * a UI. Lua keeps using the id internally for config paths and never sends it.
    *
    * Lives on the snapshot rather than the startup handshake because it is only
    * knowable after login, which happens long after the plugin starts.
    */
-  character: z.string().nullable().default(null),
+  characterName: z.string().nullable().default(null),
   /**
    * Null when Lua could not read the bars, which is distinct from all-zero.
    *

@@ -54,16 +54,28 @@ end)
 bolt.onmousemotion(function () lastmove = bolt.time() end)
 bolt.onscroll(function () lastmove = bolt.time() end)
 
---- The logged-in character, or nil in the lobby.
---
--- Confirmed in-game (P1.8): this is empty before login and populated after, so
--- it doubles as the login signal. It is reported on every snapshot rather than
--- on the startup handshake, because the plugin starts long before login and the
--- handshake value was therefore always empty.
-local function characterid()
-  local id = bolt.characterid()
-  if type(id) == "string" and #id > 0 and string.byte(id) ~= 0 then return id end
+--- Bolt's character strings are empty or NUL-led when not logged in.
+local function nonempty(value)
+  if type(value) == "string" and #value > 0 and string.byte(value) ~= 0 then return value end
   return nil
+end
+
+--- The stable per-character id, or nil in the lobby.
+--
+-- Confirmed in-game (P1.8): empty before login, populated after, so it doubles
+-- as the login signal. This is an opaque hash that Bolt's docs ask callers to
+-- treat as private; it also names the on-disk config file. It must never be
+-- sent over the bridge or shown in the UI — use charactername() for display.
+local function characterid()
+  return nonempty(bolt.characterid())
+end
+
+--- The character's display name, or nil in the lobby.
+--
+-- Reported on every snapshot rather than on the startup handshake, because the
+-- plugin starts long before login and the handshake value was always empty.
+local function charactername()
+  return nonempty(bolt.charactername())
 end
 
 -- Inbound: persist the config blob the UI owns. Lua stores it verbatim and never
@@ -94,8 +106,6 @@ bolt.onswapbuffers(function ()
   lasttick = now
   tick = tick + 1
 
-  local character = characterid()
-
   link:send({
     t = "state",
     tick = tick,
@@ -106,7 +116,9 @@ bolt.onswapbuffers(function ()
     -- queue, and this runs on the render thread. It is therefore always false
     -- there. Sent anyway so the browser can see what it is being told.
     focused = bolt.isfocused(),
-    loggedIn = character ~= nil,
-    character = character,
+    -- Gated on the id, not the name: the id is the stable signal, and a display
+    -- name could in principle be blank without meaning "logged out".
+    loggedIn = characterid() ~= nil,
+    characterName = charactername(),
   })
 end)

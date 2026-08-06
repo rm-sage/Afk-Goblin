@@ -22,7 +22,7 @@ export class SnapshotStore {
   #lastMessageAt: number | null = null;
   #chat: ChatLine[] = [];
   #xp: XpMessage[] = [];
-  #character: string | null = null;
+  #characterName: string | null = null;
   #config: string | null = null;
   #apiVersion: readonly [number, number] | null = null;
 
@@ -37,7 +37,7 @@ export class SnapshotStore {
     switch (msg.t) {
       case "state":
         this.#state = msg;
-        this.#character = msg.character;
+        this.#characterName = msg.characterName;
         break;
       case "chat":
         this.#chat.push(...msg.lines);
@@ -72,8 +72,8 @@ export class SnapshotStore {
   }
 
   /** The logged-in character, or null in the lobby. Tracks the snapshot. */
-  get character(): string | null {
-    return this.#character;
+  get characterName(): string | null {
+    return this.#characterName;
   }
 
   /** Bolt's plugin API version, once the handshake has arrived. */

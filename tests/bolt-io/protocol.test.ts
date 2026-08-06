@@ -99,21 +99,21 @@ describe("decodePluginMessage", () => {
     expect(msg.apiVersion).toEqual([1, 0]);
   });
 
-  // The character is only knowable after login, which happens long after the
+  // The characterName is only knowable after login, which happens long after the
   // plugin starts. Carrying it on the one-shot handshake meant it was always
   // captured as empty, so it belongs on the per-tick snapshot instead.
-  it("carries the character on the state snapshot", () => {
-    const msg = decodePluginMessage(frame({ ...STATE, character: "Sage" }));
+  it("carries the characterName on the state snapshot", () => {
+    const msg = decodePluginMessage(frame({ ...STATE, characterName: "Sage" }));
 
     if (msg?.t !== "state") throw new Error("expected a state message");
-    expect(msg.character).toBe("Sage");
+    expect(msg.characterName).toBe("Sage");
   });
 
-  it("reads a state with no character as null, for the logged-out case", () => {
+  it("reads a state with no characterName as null, for the logged-out case", () => {
     const msg = decodePluginMessage(frame(STATE));
 
     if (msg?.t !== "state") throw new Error("expected a state message");
-    expect(msg.character).toBeNull();
+    expect(msg.characterName).toBeNull();
   });
 });
 
