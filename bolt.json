@@ -1,6 +1,6 @@
 {
   "main": "main.lua",
-  "name": "AfkUAV",
+  "name": "AFK Goblin",
   "version": "0.1.0",
   "description": "Configurable AFK and event alerts for RuneScape 3, with in-game highlighting"
 }

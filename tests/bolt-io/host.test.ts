@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { listenForPlugin } from "~/bolt-io/host";
 import { SnapshotStore } from "~/bolt-io/snapshot";
 
-const HELLO = { t: "hello", apiVersion: [1, 0], character: "Sage" };
+const STATE = {
+  t: "state",
+  tick: 1,
+  clickIdleMs: 0,
+  mouseIdleMs: 0,
+  focused: true,
+  loggedIn: true,
+  character: "Sage",
+};
 
 function content(value: unknown): ArrayBuffer {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -21,7 +29,7 @@ describe("listenForPlugin", () => {
   it("feeds a plugin message into the store", () => {
     const { store, post } = setup();
 
-    post({ type: "pluginMessage", content: content(HELLO) });
+    post({ type: "pluginMessage", content: content(STATE) });
 
     expect(store.character).toBe("Sage");
   });
@@ -31,7 +39,7 @@ describe("listenForPlugin", () => {
   it("ignores messages that are not plugin messages", () => {
     const { store, post } = setup();
 
-    post({ type: "screenCapture", width: 2, height: 2, content: content(HELLO) });
+    post({ type: "screenCapture", width: 2, height: 2, content: content(STATE) });
 
     expect(store.character).toBeNull();
     expect(store.connected).toBe(false);
@@ -57,7 +65,7 @@ describe("listenForPlugin", () => {
     const { store, stop, post } = setup();
     stop();
 
-    post({ type: "pluginMessage", content: content(HELLO) });
+    post({ type: "pluginMessage", content: content(STATE) });
 
     expect(store.character).toBeNull();
   });

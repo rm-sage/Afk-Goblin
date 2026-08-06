@@ -114,7 +114,7 @@ export function AlertEditor(props: AlertEditorProps) {
         <label class="fld__label">Group</label>
         <input
           type="text"
-          list="afkuav-groups"
+          list="afkgoblin-groups"
           value={draft.group ?? ""}
           placeholder="Optional section heading"
           onInput={(e) => {
@@ -122,7 +122,7 @@ export function AlertEditor(props: AlertEditorProps) {
             setDraft({ ...draft, group: v.length > 0 ? v : null });
           }}
         />
-        <datalist id="afkuav-groups">
+        <datalist id="afkgoblin-groups">
           {props.groups.map((g) => (
             <option key={g} value={g} />
           ))}

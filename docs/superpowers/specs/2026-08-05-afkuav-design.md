@@ -1,4 +1,4 @@
-# AfkUAV — Design
+# AFK Goblin — Design
 
 **Date:** 2026-08-05
 **Status:** Approved (pending spec review)
@@ -23,7 +23,7 @@ dependency, importing the existing AfkWarden configuration.
 | `overheadprogress` alerter | Implemented in AfkWarden but commented out of its registry (`Alerter.ts:987`); it does not ship, so parity does not require it. |
 | Public distribution / general-purpose migration tooling | Personal build. The repo is public, but import only needs to work for one known config. |
 
-Dropping toilet mode is what makes AfkUAV **fully static with zero backend**.
+Dropping toilet mode is what makes AFK Goblin **fully static with zero backend**.
 
 ---
 
@@ -42,7 +42,7 @@ rather than from documentation.
 - **Library:** the **unscoped** `alt1` npm package (0.1.3). Not the stale scoped `@alt1/*` packages.
 - **Source recoverability:** `scripts.bundle.js.map` is published with `sourcesContent`, exposing all
   six original TypeScript files. The bundle carries **no software licence**. Behaviour is therefore
-  fully knowable, but AfkUAV reimplements from observed behaviour and the documented API rather
+  fully knowable, but AFK Goblin reimplements from observed behaviour and the documented API rather
   than copying source.
 - **Persistence:** four plain `localStorage` keys under `https://runeapps.org` —
   `afkscape_presets`, `afkscape_autosave`, `afkscape_settings`, `afkscape_customsounds`.
@@ -236,7 +236,7 @@ Reader health is part of the public state of every alerter, not an internal deta
 The requested feature, resolved to its simplest correct form. AfkWarden's reader already detects
 every chatbox (`find()` returns `{mainbox, boxes}`) but `read()` only ever consumes `pos.mainbox`.
 
-AfkUAV keeps **one `ChatBoxReader` per detected box**, so diff state is naturally per-box rather than
+AFK Goblin keeps **one `ChatBoxReader` per detected box**, so diff state is naturally per-box rather than
 something to remember to reset. Each tick:
 
 1. One `captureHoldFullRs()`, shared by every reader — N boxes cost **one** screen grab, because
@@ -350,4 +350,4 @@ Steps 1–3 produce something genuinely usable; step 4 is the long tail.
 | Silent wrong-region reads | Root cause §3.1 | Self-healing anchors + visible reader health |
 | Licensing of recovered AfkWarden source | Bundle carries no licence | Reimplement from behaviour and documented API; do not copy |
 
-Undecided: repository licence for AfkUAV itself.
+Undecided: repository licence for AFK Goblin itself.

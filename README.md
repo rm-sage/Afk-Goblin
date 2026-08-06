@@ -1,4 +1,4 @@
-# AfkUAV
+# AFK Goblin
 
 A modern replacement for the RuneScape 3 [Alt1 Toolkit](https://runeapps.org/alt1) plugin
 **AfkWarden** — full feature parity, rebuilt UI, multi-chatbox monitoring, and fixes for two
@@ -15,7 +15,7 @@ reliability defects that make the original intermittently unusable.
 Open this URL **inside the Alt1 browser** — an **Add App** button appears in the toolbar:
 
 ```
-https://rm-sage.github.io/AfkUAV/
+https://rm-sage.github.io/AFK Goblin/
 ```
 
 Then open it, hit **Import from AfkWarden**, and paste a preset exported from AfkWarden's save-icon
@@ -39,7 +39,7 @@ neither of which is the capture method that most people blame:
    successful match re-masks the stored template — a ratchet that only ever removes pixels. Real
    templates measured in the wild sit as low as 53 opaque pixels: three above the floor.
 
-AfkUAV fixes both at the architecture level. See
+AFK Goblin fixes both at the architecture level. See
 [`docs/superpowers/specs/2026-08-05-afkuav-design.md`](docs/superpowers/specs/2026-08-05-afkuav-design.md)
 for the full analysis.
 
@@ -48,7 +48,7 @@ for the full analysis.
 - **Self-healing readers** — positions are invalidated on resize, UI-scale change, `rslinked`, and
   after consecutive failed reads. Reader health is visible per-alert rather than buried.
 - **All chatboxes monitored** — the underlying library already detects every open chatbox but only
-  ever reads one. AfkUAV reads them all, at the cost of a single screen capture per tick.
+  ever reads one. AFK Goblin reads them all, at the cost of a single screen capture per tick.
 - **Immutable buff templates** with relative-coverage scoring, so sparse templates aren't
   structurally disadvantaged and can't decay.
 - **No backend.** Custom sounds and text-to-speech run locally; nothing calls out to a server.
@@ -107,7 +107,7 @@ so screenshots can be pasted in and replayed without running inside Alt1.
 ## Credit
 
 AfkWarden is by [Skillbert](https://runeapps.org), who also wrote Alt1 itself and the `alt1`
-library this project depends on. AfkUAV is an independent reimplementation built against the
+library this project depends on. AFK Goblin is an independent reimplementation built against the
 documented API — it contains no AfkWarden source.
 
 ## Licence

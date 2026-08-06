@@ -32,7 +32,10 @@ export function resolveSound(sound: string, available: ReadonlySet<string>): Sou
   return { kind: "missing", name: label };
 }
 
-const DB_NAME = "afkuav";
+// Renamed with the project. Nothing is orphaned by this: storage is per-origin,
+// and the move from Alt1's CEF profile to Bolt's is already a fresh database, so
+// custom sounds have to be re-imported either way.
+const DB_NAME = "afkgoblin";
 const DB_VERSION = 1;
 const STORE = "sounds";
 

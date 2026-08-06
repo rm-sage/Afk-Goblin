@@ -1,5 +1,5 @@
 {
-  "appName": "AfkUAV",
+  "appName": "AFK Goblin",
   "description": "AFK alerting for RuneScape 3. Modern replacement for AfkWarden, with every open chatbox monitored and readers that re-anchor themselves when the game window changes.",
   "appUrl": "./index.html",
   "configUrl": "./appconfig.json",

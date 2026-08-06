@@ -44,7 +44,7 @@ jobs:
         run: |
           version=$(node -p "require('./bolt.json').version")
           mkdir -p pages
-          tarball="afkuav-v${version}.tar.zst"
+          tarball="afk-goblin-v${version}.tar.zst"
           # The repo root is already the plugin layout -- bolt.json, main.lua,
           # lua/ and the built app/ -- so there is nothing to assemble. Bolt
           # expects bolt.json at the archive root, hence the explicit file list
@@ -52,6 +52,9 @@ jobs:
           tar --zstd -cf "pages/${tarball}" \
             bolt.json main.lua lua app $([ -d modules ] && echo modules)
           sha=$(sha256sum "pages/${tarball}" | cut -d' ' -f1)
+          # NOTE: this host path is the GitHub Pages URL, which is derived from
+          # the REPOSITORY name, not the project name. It stays AfkUAV until the
+          # GitHub repo itself is renamed; update it in the same change.
           node -e "
             const fs = require('fs');
             fs.writeFileSync('pages/meta.json', JSON.stringify({

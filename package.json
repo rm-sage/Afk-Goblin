@@ -1,7 +1,7 @@
 {
-  "name": "afkuav",
+  "name": "afk-goblin",
   "version": "0.0.0",
-  "description": "Modern replacement for the RuneScape 3 Alt1 plugin AfkWarden",
+  "description": "Configurable AFK and event alerts for RuneScape 3, with in-game highlighting",
   "directories": {
     "doc": "docs"
   },

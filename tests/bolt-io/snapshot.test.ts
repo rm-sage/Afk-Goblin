@@ -16,6 +16,7 @@ function stateAt(tick: number): StateMessage {
     player: null,
     models: [],
     craftProgress: null,
+    character: null,
   };
 }
 
@@ -119,11 +120,22 @@ describe("SnapshotStore", () => {
     expect(new SnapshotStore(clock().now).takeConfig()).toBeNull();
   });
 
-  it("records the character from the hello handshake", () => {
+  // Not from the handshake: the plugin starts before login, so the character is
+  // still empty then. It arrives on the snapshot once there is one.
+  it("records the character from the state snapshot", () => {
     const store = new SnapshotStore(clock().now);
 
-    store.accept({ t: "hello", apiVersion: [1, 0], character: "Sage" });
+    store.accept({ ...stateAt(1), character: "Sage" });
 
     expect(store.character).toBe("Sage");
+  });
+
+  it("clears the character on returning to the lobby", () => {
+    const store = new SnapshotStore(clock().now);
+    store.accept({ ...stateAt(1), character: "Sage" });
+
+    store.accept({ ...stateAt(2), character: null });
+
+    expect(store.character).toBeNull();
   });
 });

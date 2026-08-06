@@ -1,8 +1,8 @@
-# AfkUAV Core Implementation Plan
+# AFK Goblin Core Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build AfkUAV's runtime core — self-healing readers, multi-chatbox monitoring, the alerter engine, and the AfkWarden importer — up to the point where the user's 15 real presets load and their chat and inactivity alerts fire reliably.
+**Goal:** Build AFK Goblin's runtime core — self-healing readers, multi-chatbox monitoring, the alerter engine, and the AfkWarden importer — up to the point where the user's 15 real presets load and their chat and inactivity alerts fire reliably.
 
 **Architecture:** A 600 ms tick loop takes exactly one screen capture and hands it to every reader. Readers sit behind a `ReaderAnchor` that owns screen position and invalidates it on geometry change, `rslinked`, consecutive empty reads, or TTL — the fix for AfkWarden's find-once-cache-forever defect. Alerter modules are pure data + a `check()` function over a shared context, so they are testable without Alt1.
 
@@ -1250,7 +1250,7 @@ git commit -m "Add master tick loop"
 
 ```json
 {
-  "appName": "AfkUAV",
+  "appName": "AFK Goblin",
   "description": "AFK alerting for RuneScape 3. Modern replacement for AfkWarden.",
   "appUrl": "./index.html",
   "configUrl": "./appconfig.json",

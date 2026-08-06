@@ -11,7 +11,7 @@ import { dialogAlerter, dropsAlerter, targetDeathAlerter } from "~/alerters/misc
  * Alerter modules that are implemented and wired up.
  *
  * `KNOWN_ALERTER_TYPES` lists all 16 types AfkWarden ships; this map lists the
- * subset AfkUAV can currently run. The gap is deliberate and visible: importing a
+ * subset AFK Goblin can currently run. The gap is deliberate and visible: importing a
  * preset that uses a not-yet-implemented type keeps the alerter and flags it,
  * rather than dropping it silently.
  */

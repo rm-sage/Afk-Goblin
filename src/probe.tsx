@@ -20,45 +20,50 @@ const store = new SnapshotStore(() => Date.now());
 
 type LogLine = { at: number; text: string };
 
+// Registered at module scope, NOT in an effect.
+//
+// Bolt queues messages sent before the page loads and delivers them once it
+// has, which is earlier than any effect runs. Subscribing in useEffect loses
+// everything in that queue -- which is exactly how the startup handshake went
+// missing the first time this ran in-game.
+const earlyLog: LogLine[] = [];
+const tickTimes: number[] = [];
+let lastTickAt: number | null = null;
+
+listenForPlugin(store);
+
+window.addEventListener("message", (event: Event): void => {
+  const data = (event as MessageEvent).data as { type?: unknown; content?: unknown } | undefined;
+  if (typeof data !== "object" || data === null) return;
+  if (data.type !== "pluginMessage") return;
+  if (!(data.content instanceof ArrayBuffer)) return;
+
+  // Observation only: what bytes actually arrived, including anything the
+  // schema rejected and would otherwise silently drop.
+  const text = new TextDecoder().decode(data.content);
+  if (text.includes('"state"')) {
+    const now = Date.now();
+    if (lastTickAt !== null) {
+      tickTimes.push(now - lastTickAt);
+      if (tickTimes.length > 20) tickTimes.shift();
+    }
+    lastTickAt = now;
+  } else {
+    earlyLog.push({ at: Date.now(), text });
+    if (earlyLog.length > 12) earlyLog.shift();
+  }
+});
+
 function Probe() {
   const [, force] = useState(0);
-  const [log, setLog] = useState<LogLine[]>([]);
-  const [tickGaps, setTickGaps] = useState<number[]>([]);
 
   useEffect(() => {
-    const stop = listenForPlugin(store);
-
-    // A second listener purely for observation: what bytes actually arrived,
-    // including anything the schema rejected.
-    let lastTickAt: number | null = null;
-    const raw = (event: Event): void => {
-      const data = (event as MessageEvent).data as
-        | { type?: unknown; content?: unknown }
-        | undefined;
-      if (typeof data !== "object" || data === null) return;
-      if (data.type !== "pluginMessage") return;
-      if (!(data.content instanceof ArrayBuffer)) return;
-
-      const text = new TextDecoder().decode(data.content);
-      if (text.includes('"state"')) {
-        const now = Date.now();
-        if (lastTickAt !== null) {
-          setTickGaps((gaps) => [...gaps.slice(-19), now - lastTickAt!]);
-        }
-        lastTickAt = now;
-      } else {
-        setLog((lines) => [...lines.slice(-11), { at: Date.now(), text }]);
-      }
-    };
-    window.addEventListener("message", raw);
-
     const timer = window.setInterval(() => force((n) => n + 1), 200);
-    return () => {
-      stop();
-      window.removeEventListener("message", raw);
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, []);
+
+  const log = earlyLog;
+  const tickGaps = tickTimes;
 
   const state: StateMessage | null = store.state;
   const meanGap =
@@ -68,7 +73,7 @@ function Probe() {
 
   return (
     <main style="font: 13px ui-monospace, monospace; padding: 12px; line-height: 1.6">
-      <h1 style="font-size: 15px; margin: 0 0 10px">AfkUAV bridge probe</h1>
+      <h1 style="font-size: 15px; margin: 0 0 10px">AFK Goblin bridge probe</h1>
 
       <p>
         <strong style={`color: ${store.connected ? "#2e7d32" : "#c62828"}`}>
@@ -76,6 +81,8 @@ function Probe() {
         </strong>
         {"  character="}
         {store.character ?? "(none)"}
+        {"  api="}
+        {store.apiVersion === null ? "(no handshake)" : store.apiVersion.join(".")}
       </p>
 
       <h2 style="font-size: 13px; margin: 12px 0 4px">State</h2>
@@ -87,7 +94,10 @@ function Probe() {
             <Row label="tick" value={String(state.tick)} />
             <Row label="clickIdleMs" value={String(state.clickIdleMs)} />
             <Row label="mouseIdleMs" value={String(state.mouseIdleMs)} />
-            <Row label="focused" value={String(state.focused)} />
+            <Row
+              label="focused"
+              value={`${String(state.focused)}  (always false on Windows — upstream Bolt bug)`}
+            />
             <Row label="loggedIn" value={String(state.loggedIn)} />
             <Row
               label="tick gap"

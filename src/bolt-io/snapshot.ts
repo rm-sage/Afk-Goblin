@@ -24,6 +24,7 @@ export class SnapshotStore {
   #xp: XpMessage[] = [];
   #character: string | null = null;
   #config: string | null = null;
+  #apiVersion: readonly [number, number] | null = null;
 
   constructor(
     private readonly now: () => number,
@@ -36,6 +37,7 @@ export class SnapshotStore {
     switch (msg.t) {
       case "state":
         this.#state = msg;
+        this.#character = msg.character;
         break;
       case "chat":
         this.#chat.push(...msg.lines);
@@ -44,7 +46,7 @@ export class SnapshotStore {
         this.#xp.push(msg);
         break;
       case "hello":
-        this.#character = msg.character;
+        this.#apiVersion = msg.apiVersion;
         break;
       case "config":
         this.#config = msg.data;
@@ -69,8 +71,14 @@ export class SnapshotStore {
     return this.#state;
   }
 
+  /** The logged-in character, or null in the lobby. Tracks the snapshot. */
   get character(): string | null {
     return this.#character;
+  }
+
+  /** Bolt's plugin API version, once the handshake has arrived. */
+  get apiVersion(): readonly [number, number] | null {
+    return this.#apiVersion;
   }
 
   /**

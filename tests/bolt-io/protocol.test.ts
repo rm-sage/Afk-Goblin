@@ -93,21 +93,26 @@ describe("decodePluginMessage", () => {
   });
 
   it("decodes the hello handshake", () => {
-    const msg = decodePluginMessage(
-      frame({ t: "hello", apiVersion: [1, 0], character: "Sage" }),
-    );
+    const msg = decodePluginMessage(frame({ t: "hello", apiVersion: [1, 0] }));
 
     if (msg?.t !== "hello") throw new Error("expected a hello message");
     expect(msg.apiVersion).toEqual([1, 0]);
+  });
+
+  // The character is only knowable after login, which happens long after the
+  // plugin starts. Carrying it on the one-shot handshake meant it was always
+  // captured as empty, so it belongs on the per-tick snapshot instead.
+  it("carries the character on the state snapshot", () => {
+    const msg = decodePluginMessage(frame({ ...STATE, character: "Sage" }));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
     expect(msg.character).toBe("Sage");
   });
 
-  it("accepts a hello with no character, since characterid() can be empty", () => {
-    const msg = decodePluginMessage(
-      frame({ t: "hello", apiVersion: [1, 0], character: null }),
-    );
+  it("reads a state with no character as null, for the logged-out case", () => {
+    const msg = decodePluginMessage(frame(STATE));
 
-    if (msg?.t !== "hello") throw new Error("expected a hello message");
+    if (msg?.t !== "state") throw new Error("expected a state message");
     expect(msg.character).toBeNull();
   });
 });
@@ -156,13 +161,6 @@ describe("decodePluginMessage, on fields Lua omitted because they were nil", () 
 
     if (msg?.t !== "state") throw new Error("expected a state message");
     expect(msg.player).toBeNull();
-  });
-
-  it("reads an absent character as null, since characterid() can be empty", () => {
-    const msg = decodePluginMessage(frame({ t: "hello", apiVersion: [1, 0] }));
-
-    if (msg?.t !== "hello") throw new Error("expected a hello message");
-    expect(msg.character).toBeNull();
   });
 
   it("reads absent buff and model lists as empty", () => {

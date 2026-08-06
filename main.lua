@@ -1,4 +1,4 @@
--- AfkUAV — Bolt plugin entry point.
+-- AFK Goblin — Bolt plugin entry point.
 --
 -- Wiring only: create the UI, push state, route inbound requests. Detection
 -- belongs in lua/detect/*, rule evaluation belongs in the browser.
@@ -54,16 +54,12 @@ end)
 bolt.onmousemotion(function () lastmove = bolt.time() end)
 bolt.onscroll(function () lastmove = bolt.time() end)
 
---- Whether a character is loaded.
+--- The logged-in character, or nil in the lobby.
 --
--- TODO(P1.8): confirm against the live client that characterid() actually
--- empties on logout. The login gate suppresses every alert when this is false,
--- so a wrong answer here is silently expensive in both directions.
-local function loggedin()
-  local id = bolt.characterid()
-  return type(id) == "string" and #id > 0 and string.byte(id) ~= 0
-end
-
+-- Confirmed in-game (P1.8): this is empty before login and populated after, so
+-- it doubles as the login signal. It is reported on every snapshot rather than
+-- on the startup handshake, because the plugin starts long before login and the
+-- handshake value was therefore always empty.
 local function characterid()
   local id = bolt.characterid()
   if type(id) == "string" and #id > 0 and string.byte(id) ~= 0 then return id end
@@ -80,7 +76,7 @@ end)
 link:on("flash", function () bolt.flashwindow() end)
 
 local major, minor = bolt.apiversion()
-link:send({ t = "hello", apiVersion = { major, minor }, character = characterid() })
+link:send({ t = "hello", apiVersion = { major, minor } })
 
 -- Hand the stored config over once at startup. The UI is the only thing that
 -- understands its shape.
@@ -98,12 +94,19 @@ bolt.onswapbuffers(function ()
   lasttick = now
   tick = tick + 1
 
+  local character = characterid()
+
   link:send({
     t = "state",
     tick = tick,
     clickIdleMs = elapsedms(lastclick, now),
     mouseIdleMs = elapsedms(lastmove, now),
+    -- Known-unreliable on Windows: Bolt implements this with GetFocus(), which
+    -- only reports a focus window belonging to the calling thread's message
+    -- queue, and this runs on the render thread. It is therefore always false
+    -- there. Sent anyway so the browser can see what it is being told.
     focused = bolt.isfocused(),
-    loggedIn = loggedin(),
+    loggedIn = character ~= nil,
+    character = character,
   })
 end)

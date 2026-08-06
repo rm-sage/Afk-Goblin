@@ -1,4 +1,4 @@
-# AfkUAV on Bolt — migration design
+# AFK Goblin on Bolt — migration design
 
 **Date:** 2026-08-06
 **Status:** approved design, not yet planned
@@ -6,7 +6,7 @@
 
 ## Decision
 
-Migrate AfkUAV from the Alt1 Toolkit to the [Bolt Launcher](https://bolt.adamcake.com/) plugin
+Migrate AFK Goblin from the Alt1 Toolkit to the [Bolt Launcher](https://bolt.adamcake.com/) plugin
 ecosystem, as a **new plugin** rather than a fork of
 [bolt-alerts](https://codeberg.org/Adamcake/bolt-alerts). Retire the Alt1 build once parity is
 reached.
@@ -111,7 +111,7 @@ Notes on the remainder:
 │         │ sendmessage / onmessage (JSON)     │
 │    ┌────▼──────────────────────────────────┐ │
 │    │  embedded CEF browser                 │ │
-│    │  plugin://app/dist/index.html         │ │
+│    │  plugin://app/index.html         │ │
 │    │                                       │ │
 │    │  src/engine   — TickLoop, registry    │ │
 │    │  src/alerters — all 16 types          │ │
@@ -325,7 +325,7 @@ inside the Alt1 browser and press Add App" flow.
 ## Repo layout
 
 ```
-AfkUAV/
+AFK Goblin/
   bolt.json                 # plugin manifest
   main.lua                  # entry: wiring only
   lua/                      # required as "lua.bridge" etc — Bolt resolves dot paths from the root
@@ -402,6 +402,20 @@ Step 9 (retire Alt1) is a decision, not a plan.
   either — so inactivity behaviour matches or beats the current build. Adding key events would mean
   patching and self-building Bolt; **out of scope, by decision, and not to be reopened as part of
   this migration.**
+- **`bolt.isfocused()` is always false on Windows.** Confirmed in-game, and confirmed against Bolt's
+  source: Linux tracks focus from `XCB_FOCUS_IN`/`FOCUS_OUT` events into a guarded flag
+  (`so/main.c:355`), but Windows is `return GetFocus() == game_hwnd` (`dll/main.c:197`). `GetFocus()`
+  only reports a focus window belonging to the *calling thread's* message queue, and Lua runs on the
+  render thread, so it returns NULL. The correct call is `GetForegroundWindow()`.
+
+  Blast radius is small and fails safe: `focused` feeds only `shouldSuppress`, which early-returns
+  unless `activeSuppress` is on — and that defaults to off. Stuck-false means alerts are never
+  suppressed, i.e. extra alerts rather than missed ones. Taskbar flashing is unaffected, because
+  `_bolt_flash_window` uses `FlashWindowEx` with `FLASHW_TIMERNOFG` and never consults the broken
+  check.
+
+  **Do not build anything that fails dangerously when this is wrong.** Worth reporting upstream; it
+  is a one-line fix, and fixing it there is preferable to working around it here.
 - **Model fragility.** Graphical updates break vertex-count fingerprints. Fail soft, verify against
   multiple vertices.
 - **In-process crashes.** A Lua error can take the game down. Defensive detection code; keep logic

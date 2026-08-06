@@ -152,7 +152,7 @@ export function SettingsDialog({
 
       <p class="fld__help">
         AfkWarden hosts custom sounds on its own server, so its alerts go quiet whenever that
-        server is unreachable. Add the audio files here and AfkUAV keeps them locally. Imported
+        server is unreachable. Add the audio files here and AFK Goblin keeps them locally. Imported
         alerts reconnect automatically when the file name matches the sound they referenced.
       </p>
 

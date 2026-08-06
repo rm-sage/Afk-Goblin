@@ -3,7 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AfkUAV bridge probe</title>
+    <title>AFK Goblin bridge probe</title>
+    <style>
+      /*
+       * Embedded browsers start fully transparent over the game, so anything
+       * without its own background renders as unreadable text floating on the
+       * scene. Every page shipped in the plugin must paint its own background.
+       */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #14171c;
+        color: #e6e6e6;
+      }
+      button {
+        background: #262b33;
+        color: #e6e6e6;
+        border: 1px solid #3a414c;
+        border-radius: 3px;
+        padding: 3px 8px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #323944;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

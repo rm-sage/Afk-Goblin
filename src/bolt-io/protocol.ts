@@ -50,8 +50,22 @@ export const StateMessageSchema = z.object({
   clickIdleMs: z.number().nonnegative(),
   /** Milliseconds since the last mouse motion or scroll. A duration. */
   mouseIdleMs: z.number().nonnegative(),
+  /**
+   * WARNING: unreliable on Windows, where Bolt reports focus with `GetFocus()`
+   * — which only sees the focus window if it belongs to the CALLING THREAD's
+   * message queue, and Lua runs on the render thread. It is therefore always
+   * false there. Linux tracks XCB focus events properly. Do not build behaviour
+   * that fails dangerously when this is wrong.
+   */
   focused: z.boolean(),
   loggedIn: z.boolean(),
+  /**
+   * The logged-in character, or null in the lobby.
+   *
+   * Lives on the snapshot rather than the startup handshake because it is only
+   * knowable after login, which happens long after the plugin starts.
+   */
+  character: z.string().nullable().default(null),
   /**
    * Null when Lua could not read the bars, which is distinct from all-zero.
    *
@@ -90,14 +104,10 @@ export const XpMessageSchema = z.object({
   amount: z.number(),
 });
 
+/** Sent once at startup. Purely the API version handshake — see `character` on state. */
 export const HelloMessageSchema = z.object({
   t: z.literal("hello"),
   apiVersion: z.tuple([z.number(), z.number()]),
-  /**
-   * `bolt.characterid()` returns nothing when no character is loaded yet, and a
-   * nil field does not survive Lua's table encoding — so absent means null here.
-   */
-  character: z.string().nullable().default(null),
 });
 
 /**

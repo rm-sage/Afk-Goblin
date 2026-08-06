@@ -58,7 +58,7 @@ end
 function Bridge:send(message)
   local ok, encoded = pcall(json.encode, message)
   if not ok then
-    print("afkuav: could not encode outgoing message: " .. tostring(encoded))
+    print("afkgoblin: could not encode outgoing message: " .. tostring(encoded))
     return
   end
   self.browser:sendmessage(encoded)
@@ -77,7 +77,7 @@ end
 function Bridge:receive(message)
   local ok, decoded = pcall(json.decode, message)
   if not ok or type(decoded) ~= "table" then
-    print("afkuav: could not decode incoming message")
+    print("afkgoblin: could not decode incoming message")
     return
   end
 
@@ -86,7 +86,7 @@ function Bridge:receive(message)
 
   local handled, err = pcall(handler, decoded)
   if not handled then
-    print("afkuav: handler for '" .. tostring(decoded.t) .. "' failed: " .. tostring(err))
+    print("afkgoblin: handler for '" .. tostring(decoded.t) .. "' failed: " .. tostring(err))
   end
 end
 
