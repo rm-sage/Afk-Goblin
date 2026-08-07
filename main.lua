@@ -9,6 +9,7 @@ bolt.checkversion(1, 0)
 
 local bridge = require("lua.bridge")
 local chat = require("lua.detect.chat")
+local stats = require("lua.detect.stats")
 
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
@@ -55,7 +56,10 @@ end)
 bolt.onmousemotion(function () lastmove = bolt.time() end)
 bolt.onscroll(function () lastmove = bolt.time() end)
 
-bolt.onrender2d(function (event) chat.onrender2d(event) end)
+bolt.onrender2d(function (event)
+  chat.onrender2d(event)
+  stats.onrender2d(event)
+end)
 
 --- Bolt's character strings are empty or NUL-led when not logged in.
 local function nonempty(value)
@@ -112,6 +116,7 @@ bolt.onswapbuffers(function ()
   -- Ask for one chat scan per tick. render2d fires many times a frame, and
   -- scanning every one of them is pure waste.
   chat.request()
+  stats.request()
 
   local lines = chat.drain()
   if lines ~= nil then
@@ -142,5 +147,6 @@ bolt.onswapbuffers(function ()
     chatAvailable = chat.available(),
     chatScrolledUp = chat.scrolledup(),
     chatBoxes = chat.boxcount(),
+    stats = stats.read(),
   })
 end)
