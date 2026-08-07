@@ -10,16 +10,16 @@ bolt.checkversion(1, 0)
 local bridge = require("lua.bridge")
 local chat = require("lua.detect.chat")
 local stats = require("lua.detect.stats")
+local buffs = require("lua.detect.buffs")
 
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
 
--- TODO(P1.4): flip to app/index.html once the engine seam consumes the bridge.
--- Until then the app still reads Alt1 and would show nothing but empty state,
--- whereas the probe exercises the bridge and reports what actually arrived.
-local UI_URL = "plugin://app/probe.html"
+-- The app. app/probe.html is still shipped and is the bridge diagnostics page;
+-- point this at it temporarily when something needs debugging at the wire level.
+local UI_URL = "plugin://app/index.html"
 
-local browser = bolt.createembeddedbrowser(0, 0, 480, 640, UI_URL)
+local browser = bolt.createembeddedbrowser(0, 0, 520, 720, UI_URL)
 local link = bridge.new(browser)
 
 -- CEF disables window.close(), so the UI self-closes via the /close-request
@@ -59,7 +59,10 @@ bolt.onscroll(function () lastmove = bolt.time() end)
 bolt.onrender2d(function (event)
   chat.onrender2d(event)
   stats.onrender2d(event)
+  buffs.onrender2d(event)
 end)
+
+bolt.onrendericon(function (event) buffs.onrendericon(event) end)
 
 --- Bolt's character strings are empty or NUL-led when not logged in.
 local function nonempty(value)
@@ -117,6 +120,7 @@ bolt.onswapbuffers(function ()
   -- scanning every one of them is pure waste.
   chat.request()
   stats.request()
+  buffs.request()
 
   local lines = chat.drain()
   if lines ~= nil then
@@ -129,6 +133,8 @@ bolt.onswapbuffers(function ()
     end
     link:send({ t = "chat", lines = out })
   end
+
+  local buffslist, debuffslist = buffs.read()
 
   link:send({
     t = "state",
@@ -148,5 +154,7 @@ bolt.onswapbuffers(function ()
     chatScrolledUp = chat.scrolledup(),
     chatBoxes = chat.boxcount(),
     stats = stats.read(),
+    buffs = buffslist,
+    debuffs = debuffslist,
   })
 end)

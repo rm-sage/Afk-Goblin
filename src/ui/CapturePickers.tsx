@@ -5,9 +5,20 @@ function rgbCss(c: RGB): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-/** Turn "spiritattractionpotion" into something readable without a lookup table. */
-function prettyBuffName(id: string): string {
-  return id.replace(/^./, (c) => c.toUpperCase());
+/**
+ * Describe a buff in terms a human can match against their own screen.
+ *
+ * The id is a discovered signature ("2:1344"), which is stable and unique but
+ * meaningless to read. What actually lets someone tell one buff from another in
+ * this list is its remaining time and stack count — the same numbers showing on
+ * the bar right now.
+ */
+function describeBuff(b: BuffSlot): string {
+  const parts: string[] = [];
+  if (b.timeLeft !== null) parts.push(`${b.timeLeft}s left`);
+  if (b.stacks !== null) parts.push(`${b.stacks} stacks`);
+  if (parts.length === 0) parts.push("no timer showing");
+  return parts.join(", ");
 }
 
 /* ============================== buff picker ============================== */
@@ -26,9 +37,9 @@ export type BuffPickerProps = {
  *
  * The intent is unchanged from the Alt1 version — show what is really on the bar
  * rather than asking the user to describe a buff — but the mechanism is not.
- * Alt1 stored the captured PIXELS and matched them later, so what you picked was
- * literally what got matched. Bolt identifies buffs by name against the game's
- * own texture atlas, so what is stored is an id and matching cannot drift.
+ * Alt1 stored the captured PIXELS and matched them later, so a template could
+ * decay until it stopped matching. What is stored now is a signature derived
+ * from the buff's icon model, which cannot drift because nothing rewrites it.
  *
  * The practical consequence is that a buff must be ACTIVE to be picked. That is
  * a real limitation, and the dialog says so rather than showing an empty list
@@ -50,8 +61,9 @@ export function BuffPicker({ open, isDebuff, buffs, onPick, onClose }: BuffPicke
     <dialog ref={ref} onCancel={onClose}>
       <h2>Pick a {what}</h2>
       <p class="fld__help">
-        Showing the {what}s active right now. Apply the one you want to watch, then pick it here —
-        it only needs to be active while you choose it, not afterwards.
+        Showing the {what}s active right now, listed by what they read on the bar. Apply the one you
+        want to watch, then pick it here — it only needs to be active while you choose it, not
+        afterwards. Name the alert itself to remember which is which.
       </p>
 
       {buffs.length === 0 ? (
@@ -63,8 +75,8 @@ export function BuffPicker({ open, isDebuff, buffs, onPick, onClose }: BuffPicke
           {buffs.map((b) => (
             <li key={b.id}>
               <button class="btn btn--ghost" onClick={() => onPick(b.id)}>
-                {prettyBuffName(b.id)}
-                {b.timeLeft !== null ? ` — ${b.timeLeft}s` : ""}
+                {describeBuff(b)}
+                <span style="color: #888"> ({b.id})</span>
               </button>
             </li>
           ))}
