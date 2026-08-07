@@ -22,6 +22,23 @@ export const ChatVars = z.object({
 
 export type ChatVars = z.infer<typeof ChatVars>;
 
+/**
+ * Fold text to the form both sides can actually be compared in.
+ *
+ * Bolt's chat module assembles each message one GLYPH at a time, and a space has
+ * no glyph — it produces no vertex, so it never reaches us. "A Seren spirit
+ * appears" arrives as "ASerenspiritappears". Every alert was written by a human
+ * WITH spaces, so whitespace has to come out of both sides or nothing matches.
+ *
+ * Removing it rather than collapsing it, because the module gives no signal that
+ * a gap was ever there. The theoretical cost is that "a b" would match "ab";
+ * against trigger phrases of several words that is not a real collision, and it
+ * is far cheaper than every chat alert silently never firing.
+ */
+function fold(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, "");
+}
+
 function colorMatches(line: ChatLine, colors: readonly RGB[]): boolean {
   if (colors.length === 0) return true;
 
@@ -75,7 +92,7 @@ export const chatAlerter = defineAlerter<ChatVars>({
   ],
   create(vars) {
     const needles = vars.lines
-      .map((l) => l.text.toLowerCase())
+      .map((l) => fold(l.text))
       .filter((t) => t.length > 0);
 
     let triggered = false;
@@ -106,7 +123,7 @@ export const chatAlerter = defineAlerter<ChatVars>({
 
         for (const line of ctx.chatLines) {
           if (!colorMatches(line, vars.colors)) continue;
-          const hay = line.text.toLowerCase();
+          const hay = fold(line.text);
           if (needles.some((n) => hay.includes(n))) {
             triggered = true;
             triggeredAt = ctx.now;

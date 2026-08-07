@@ -190,3 +190,42 @@ describe("chat colour matching when the reader cannot report colours", () => {
     expect(r.triggered).toBe(false);
   });
 });
+
+// Bolt's chat module builds each message one GLYPH at a time, and a space has no
+// glyph — it produces no vertex, so it is simply absent from what the module
+// returns. Every imported alert was written by a human with spaces in it, so
+// matching has to ignore them on both sides or none of the 74 chat alerts in the
+// reference config can ever fire.
+describe("chat matching against text that lost its spaces", () => {
+  it("matches a spaced needle against unspaced text", () => {
+    const a = chatAlerter.create(
+      ChatVars.parse({ lines: [{ text: "Seren spirit", percent: 100 }], colors: [] }),
+    );
+
+    const r = a.check(
+      ctx({ chatLines: [{ text: "ASerenspiritappears", colors: [], fragments: [] }] }),
+    );
+
+    expect(r.triggered).toBe(true);
+  });
+
+  it("still matches when both sides have spaces", () => {
+    const a = chatAlerter.create(
+      ChatVars.parse({ lines: [{ text: "Seren spirit", percent: 100 }], colors: [] }),
+    );
+
+    expect(
+      a.check(ctx({ chatLines: [line("A Seren spirit appears")] })).triggered,
+    ).toBe(true);
+  });
+
+  it("does not match unrelated text just because spaces were removed", () => {
+    const a = chatAlerter.create(
+      ChatVars.parse({ lines: [{ text: "Seren spirit", percent: 100 }], colors: [] }),
+    );
+
+    expect(a.check(ctx({ chatLines: [line("You have run out of energy")] })).triggered).toBe(
+      false,
+    );
+  });
+});
