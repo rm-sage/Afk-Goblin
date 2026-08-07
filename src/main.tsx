@@ -200,6 +200,11 @@ function paint(): void {
           alerts.splice(0, alerts.length, ...applyDrop(alerts, from, target));
         });
       }}
+      chat={{
+        available: snapshot.state?.chatAvailable ?? false,
+        scrolledUp: snapshot.state?.chatScrolledUp ?? false,
+        boxes: snapshot.state?.chatBoxes ?? 0,
+      }}
       liveBuffs={snapshot.state?.buffs ?? []}
       liveDebuffs={snapshot.state?.debuffs ?? []}
       recentChat={recentChat}

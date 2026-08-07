@@ -141,5 +141,6 @@ bolt.onswapbuffers(function ()
     characterName = charactername(),
     chatAvailable = chat.available(),
     chatScrolledUp = chat.scrolledup(),
+    chatBoxes = chat.boxcount(),
   })
 end)

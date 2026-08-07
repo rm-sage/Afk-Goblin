@@ -18,6 +18,7 @@ function stateAt(tick: number): StateMessage {
     craftProgress: null,
     chatAvailable: true,
     chatScrolledUp: false,
+    chatBoxes: 1,
     dialogOpen: null,
     target: null,
     newDrops: null,

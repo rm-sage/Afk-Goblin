@@ -34,6 +34,8 @@ export type AppProps = {
   onReorder(from: number, target: DropTarget): void;
   soundNames: string[];
   missingSounds: string[];
+  /** Chat reader health, surfaced because both failure modes are user-fixable. */
+  chat: { available: boolean; scrolledUp: boolean; boxes: number };
   liveBuffs: readonly BuffSlot[];
   liveDebuffs: readonly BuffSlot[];
   recentChat: readonly ChatLine[];
@@ -59,16 +61,38 @@ function useRepaint(ms = 200): void {
  * reads the game's draw calls, so there is nothing to locate. The one thing
  * that can now go wrong is the plugin going quiet, and that is what this shows.
  */
-function HealthPill({ connected, character }: { connected: boolean; character: string | null }) {
+function HealthPill({
+  connected,
+  character,
+  chat,
+}: {
+  connected: boolean;
+  character: string | null;
+  chat: { available: boolean; scrolledUp: boolean; boxes: number };
+}) {
   const label = connected ? (character ?? "connected") : "no data";
-  const title = connected
-    ? character !== null
-      ? `Connected to the plugin, logged in as ${character}.`
-      : "Connected to the plugin. Not logged in."
-    : "Not receiving data from the plugin. Is it running?";
+
+  // Both chat failure modes are things the user can fix, so name the fix rather
+  // than reporting a bare "not working".
+  const chatNote = !connected
+    ? ""
+    : chat.scrolledUp
+      ? " Chat is scrolled up, so new messages cannot be read."
+      : !chat.available
+        ? " Chat is not readable — enable message timestamps in game."
+        : ` Reading ${chat.boxes} chat box${chat.boxes === 1 ? "" : "es"}.`;
+
+  const title =
+    (connected
+      ? character !== null
+        ? `Connected to the plugin, logged in as ${character}.`
+        : "Connected to the plugin. Not logged in."
+      : "Not receiving data from the plugin. Is it running?") + chatNote;
+
+  const degraded = connected && !chat.available;
 
   return (
-    <span class={`health health--${connected ? "ok" : "lost"}`} title={title}>
+    <span class={`health health--${!connected ? "lost" : degraded ? "searching" : "ok"}`} title={title}>
       <span class="health__dot" />
       {label}
     </span>
@@ -321,7 +345,7 @@ export function App(props: AppProps) {
             </option>
           ))}
         </select>
-        <HealthPill connected={connected} character={characterName} />
+        <HealthPill connected={connected} character={characterName} chat={props.chat} />
       </header>
 
       <div class="subhdr">

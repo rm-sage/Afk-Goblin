@@ -109,6 +109,8 @@ export const StateMessageSchema = z.object({
   chatAvailable: z.boolean().default(false),
   /** Chat box scrolled up, so new messages are off-screen and unreadable. */
   chatScrolledUp: z.boolean().default(false),
+  /** How many chat boxes are being read. Every open box is monitored, not just one. */
+  chatBoxes: z.number().int().nonnegative().default(0),
   /**
    * The next three have no detection yet — they land later in Phase 2. They
    * default to null rather than to a false or an empty list on purpose: "not
