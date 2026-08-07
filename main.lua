@@ -19,7 +19,19 @@ local TICK_US = 600000
 -- point this at it temporarily when something needs debugging at the wire level.
 local UI_URL = "plugin://app/index.html"
 
-local browser = bolt.createembeddedbrowser(0, 0, 520, 720, UI_URL)
+-- An EXTERNAL window, not an embedded one, and this is not a style preference.
+--
+-- Embedded browsers are offscreen-rendered, so the host has to forward input
+-- into them, and Bolt forwards only mouse events -- there is no key handling
+-- anywhere in its browser or library layers. Typing into an embedded browser is
+-- therefore impossible, which makes it useless for a UI built around importing
+-- presets and entering trigger text.
+--
+-- An external browser is a real OS window with its own handle, so Windows
+-- delivers keyboard to it directly and Bolt is not involved. Same root cause as
+-- bolt.isfocused() being stuck false: Bolt's Windows input layer does mouse
+-- only.
+local browser = bolt.createbrowser(560, 760, UI_URL)
 local link = bridge.new(browser)
 
 -- CEF disables window.close(), so the UI self-closes via the /close-request

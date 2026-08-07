@@ -206,10 +206,11 @@ function ImportDialog({
 
   return (
     <dialog ref={ref} onCancel={onClose}>
-      <h2>Import from AfkWarden</h2>
+      <h2>Import presets</h2>
       <p class="fld__help">
-        In AfkWarden, open the save icon, choose a preset and press Export, then paste it here. The
-        whole <code>afkscape_presets</code> blob works too.
+        Paste a preset exported from here, or from AfkWarden — the format is the same, so either
+        works. In AfkWarden, open the save icon, choose a preset and press Export. The whole
+        <code>afkscape_presets</code> blob works too.
       </p>
       <textarea
         value={text}
@@ -382,8 +383,8 @@ export function App(props: AppProps) {
         </button>
         <button
           class="toolbtn"
-          title="Import from AfkWarden"
-          aria-label="Import from AfkWarden"
+          title="Import presets"
+          aria-label="Import presets"
           onClick={() => setImportOpen(true)}
         >
           ⬇
@@ -452,7 +453,7 @@ export function App(props: AppProps) {
               scratch.
             </p>
             <button class="btn" onClick={() => setImportOpen(true)}>
-              Import from AfkWarden
+              Import presets
             </button>
             <button class="btn btn--ghost" onClick={() => promptPreset("new")}>
               New empty preset
