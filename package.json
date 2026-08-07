@@ -27,7 +27,6 @@
   },
   "homepage": "https://github.com/rm-sage/Afk-Goblin#readme",
   "dependencies": {
-    "alt1": "^0.1.3",
     "preact": "^10.29.8",
     "zod": "^4.4.3"
   },

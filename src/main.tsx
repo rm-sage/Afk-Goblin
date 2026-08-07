@@ -9,6 +9,7 @@ import { shouldSuppress } from "~/alerting/taskbar";
 import { TICK_MS, TickLoop } from "~/engine/loop";
 import { Store } from "~/store/storage";
 import { PresetSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
+import type { ChatLine } from "~/engine/types";
 import { applyDrop } from "~/engine/reorder";
 import { speak } from "~/alerting/speech";
 import { App, type PresetAction } from "~/ui/App";
@@ -35,7 +36,13 @@ const loop = new TickLoop({
   loggedIn: () => snapshot.state?.loggedIn ?? false,
   suppressWhenLoggedOut: () => settings.suppressWhenLoggedOut,
   state: () => view.state,
-  chatLines: () => snapshot.drainChat(),
+  chatLines: () => {
+    const lines = snapshot.drainChat();
+    if (lines.length > 0) {
+      recentChat = [...recentChat, ...lines].slice(-RECENT_CHAT_MAX);
+    }
+    return lines;
+  },
 });
 
 function activePreset(): Preset | null {
@@ -118,6 +125,16 @@ function dispatchAlerts(): void {
   void tooltips;
 }
 
+/**
+ * Chat lines kept purely so the picker can offer real ones.
+ *
+ * The loop DRAINS chat, so a line is gone the moment it has been evaluated.
+ * The picker needs a short history instead of a single tick's worth, hence a
+ * separate rolling buffer rather than reading the store again.
+ */
+const RECENT_CHAT_MAX = 40;
+let recentChat: ChatLine[] = [];
+
 function tick(): void {
   // Fold XP drops into the running totals before stepping, so alerters see this
   // tick's gains rather than last tick's.
@@ -182,6 +199,9 @@ function paint(): void {
           alerts.splice(0, alerts.length, ...applyDrop(alerts, from, target));
         });
       }}
+      liveBuffs={snapshot.state?.buffs ?? []}
+      liveDebuffs={snapshot.state?.debuffs ?? []}
+      recentChat={recentChat}
       soundNames={[...sounds.names].sort()}
       missingSounds={missingSounds()}
       onAddSounds={(files) => {

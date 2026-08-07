@@ -6,6 +6,7 @@ import { TONES } from "~/alerting/tones";
 import { soundLabel } from "~/alerting/sound-library";
 import { FieldEditor } from "~/ui/FieldEditor";
 import { BuffPicker, ChatPicker } from "~/ui/CapturePickers";
+import type { BuffSlot, ChatLine } from "~/engine/types";
 
 export type AlertEditorProps = {
   /** The alert being edited, or null when creating a new one. */
@@ -13,6 +14,11 @@ export type AlertEditorProps = {
   open: boolean;
   groups: string[];
   soundNames: string[];
+  /** Buffs and debuffs currently on the bar, so the picker can offer real ones. */
+  liveBuffs: readonly BuffSlot[];
+  liveDebuffs: readonly BuffSlot[];
+  /** Recently seen chat lines, so the picker can offer real ones. */
+  recentChat: readonly ChatLine[];
   onSave(next: AlerterBase): void;
   onDelete(): void;
   onClose(): void;
@@ -47,6 +53,9 @@ export function AlertEditor(props: AlertEditorProps) {
 
   const module = useMemo(() => getAlerterModule(draft.type), [draft.type]);
   const [picker, setPicker] = useState<"buff" | "chat" | null>(null);
+
+  const isDebuff =
+    (draft.vars.bufftype as { isdebuff?: boolean } | undefined)?.isdebuff === true;
   const chosenLines = Array.isArray(draft.vars.lines)
     ? (draft.vars.lines as Array<{ text: string }>)
     : [];
@@ -147,10 +156,13 @@ export function AlertEditor(props: AlertEditorProps) {
 
       <BuffPicker
         open={picker === "buff"}
-        isDebuff={(draft.vars.bufftype as { isdebuff?: boolean } | undefined)?.isdebuff === true}
-        onPick={(imgstr) => {
+        isDebuff={isDebuff}
+        buffs={isDebuff ? props.liveDebuffs : props.liveBuffs}
+        onPick={(buffid) => {
           const existing = (draft.vars.bufftype ?? {}) as Record<string, unknown>;
-          setVar("bufftype", { ...existing, imgstr, buffid: "" });
+          // imgstr is cleared: an id and a captured needle are alternative
+          // identities, and keeping both invites the stale one being believed.
+          setVar("bufftype", { ...existing, buffid, imgstr: "" });
           setPicker(null);
         }}
         onClose={() => setPicker(null)}
@@ -158,6 +170,7 @@ export function AlertEditor(props: AlertEditorProps) {
 
       <ChatPicker
         open={picker === "chat"}
+        lines={props.recentChat}
         chosen={chosenLines.map((l) => l.text)}
         onPick={(text, colors) => {
           // Both fields move together: a line is only useful alongside the

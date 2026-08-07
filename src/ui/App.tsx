@@ -7,6 +7,7 @@ import { AlertEditor } from "~/ui/AlertEditor";
 import { SettingsDialog } from "~/ui/SettingsDialog";
 import { useDragList, type DragState } from "~/ui/useDragList";
 import type { DropTarget } from "~/engine/reorder";
+import type { BuffSlot, ChatLine } from "~/engine/types";
 
 export type PresetAction =
   | { kind: "new"; name: string }
@@ -33,6 +34,9 @@ export type AppProps = {
   onReorder(from: number, target: DropTarget): void;
   soundNames: string[];
   missingSounds: string[];
+  liveBuffs: readonly BuffSlot[];
+  liveDebuffs: readonly BuffSlot[];
+  recentChat: readonly ChatLine[];
   onAddSounds(files: FileList): void;
   onRemoveSound(name: string): void;
   onPresetAction(action: PresetAction): void;
@@ -483,6 +487,9 @@ export function App(props: AppProps) {
         alert={editingAlert}
         groups={groups}
         soundNames={props.soundNames}
+        liveBuffs={props.liveBuffs}
+        liveDebuffs={props.liveDebuffs}
+        recentChat={props.recentChat}
         onSave={(next) => {
           props.onSaveAlert(editing?.index ?? null, next);
           setEditing(null);

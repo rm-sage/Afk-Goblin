@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { probeBuffs } from "~/alt1-io/readers";
-import { probeChatLines } from "~/alt1-io/host";
-import { needleToBase64, needleToDataUrl } from "~/ui/needle-image";
-import { coverage, isLowCoverage } from "~/readers/buff-match";
-import type { BuffSlot } from "~/readers/bundle";
-import type { ChatLine, RGB } from "~/engine/types";
+import { useEffect, useRef } from "preact/hooks";
+import type { BuffSlot, ChatLine, RGB } from "~/engine/types";
 
 function rgbCss(c: RGB): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+/** Turn "spiritattractionpotion" into something readable without a lookup table. */
+function prettyBuffName(id: string): string {
+  return id.replace(/^./, (c) => c.toUpperCase());
 }
 
 /* ============================== buff picker ============================== */
@@ -15,205 +15,131 @@ function rgbCss(c: RGB): string {
 export type BuffPickerProps = {
   open: boolean;
   isDebuff: boolean;
-  onPick(imgstr: string): void;
+  /** Buffs currently on the bar, as pushed by the plugin. */
+  buffs: readonly BuffSlot[];
+  onPick(buffId: string): void;
   onClose(): void;
 };
 
-type BuffShot = { slot: BuffSlot; url: string | null };
-
 /**
- * Pick a buff to watch by capturing the bar and showing what is actually on it.
+ * Pick a buff to watch by choosing one that is currently active.
  *
- * Capturing beats asking the user to describe a buff: the icon stored is the
- * same pixels the matcher will compare against later, so what you select is
- * literally what gets matched.
+ * The intent is unchanged from the Alt1 version — show what is really on the bar
+ * rather than asking the user to describe a buff — but the mechanism is not.
+ * Alt1 stored the captured PIXELS and matched them later, so what you picked was
+ * literally what got matched. Bolt identifies buffs by name against the game's
+ * own texture atlas, so what is stored is an id and matching cannot drift.
+ *
+ * The practical consequence is that a buff must be ACTIVE to be picked. That is
+ * a real limitation, and the dialog says so rather than showing an empty list
+ * with no explanation.
  */
-export function BuffPicker({ open, isDebuff, onPick, onClose }: BuffPickerProps) {
+export function BuffPicker({ open, isDebuff, buffs, onPick, onClose }: BuffPickerProps) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [shots, setShots] = useState<BuffShot[] | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const capture = useCallback(() => {
-    const slots = probeBuffs(isDebuff);
-    if (slots === null) {
-      setFailed(true);
-      setShots(null);
-      return;
-    }
-    setFailed(false);
-    setShots(slots.map((slot) => ({ slot, url: needleToDataUrl(slot.icon) })));
-  }, [isDebuff]);
 
   useEffect(() => {
     const d = ref.current;
     if (d === null) return;
-    if (open && !d.open) {
-      d.showModal();
-      capture();
-    }
+    if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
-  }, [open, capture]);
+  }, [open]);
+
+  const what = isDebuff ? "debuff" : "buff";
 
   return (
     <dialog ref={ref} onCancel={onClose}>
-      <h2>Pick a {isDebuff ? "debuff" : "buff"}</h2>
+      <h2>Pick a {what}</h2>
       <p class="fld__help">
-        Make sure the {isDebuff ? "debuff" : "buff"} is showing in game, then capture. The icon
-        stored is exactly what gets matched later.
+        Showing the {what}s active right now. Apply the one you want to watch, then pick it here —
+        it only needs to be active while you choose it, not afterwards.
       </p>
 
-      {failed ? (
-        <p class="fld__help fld__help--warn">
-          Could not find the {isDebuff ? "debuff" : "buff"} bar. Check it is on screen and that
-          RuneScape is not covered by another window.
+      {buffs.length === 0 ? (
+        <p class="fld__help">
+          No {what}s are active. Apply one in game and this list will fill in.
         </p>
-      ) : null}
-
-      {shots !== null && shots.length === 0 ? (
-        <p class="fld__help fld__help--warn">
-          The bar was found but is empty — nothing to pick yet.
-        </p>
-      ) : null}
-
-      {shots !== null && shots.length > 0 ? (
-        <div class="buffgrid">
-          {shots.map((s, i) => {
-            const sparse = isLowCoverage(s.slot.icon);
-            return (
-              <button
-                key={i}
-                class={`buffpick${sparse ? " buffpick--sparse" : ""}`}
-                title={
-                  sparse
-                    ? `Only ${coverage(s.slot.icon)} distinctive pixels — this icon may match unreliably.`
-                    : "Watch this buff"
-                }
-                onClick={() => {
-                  const b64 = needleToBase64(s.slot.icon);
-                  if (b64 !== null) onPick(b64);
-                }}
-              >
-                {s.url !== null ? <img src={s.url} alt="" /> : <span>?</span>}
-                {s.slot.timeLeft !== null ? (
-                  <span class="buffpick__time">{s.slot.timeLeft}s</span>
-                ) : null}
+      ) : (
+        <ul class="issues">
+          {buffs.map((b) => (
+            <li key={b.id}>
+              <button class="btn btn--ghost" onClick={() => onPick(b.id)}>
+                {prettyBuffName(b.id)}
+                {b.timeLeft !== null ? ` — ${b.timeLeft}s` : ""}
               </button>
-            );
-          })}
-        </div>
-      ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div class="dlg__actions">
-        <button class="btn btn--ghost" onClick={capture}>
-          Recapture
-        </button>
-        <button class="btn" onClick={onClose}>
-          Done
+        <button class="btn btn--ghost" onClick={onClose}>
+          Cancel
         </button>
       </div>
     </dialog>
   );
 }
 
-/* =========================== chat line picker ============================ */
+/* ============================== chat picker ============================== */
 
 export type ChatPickerProps = {
   open: boolean;
-  /** Text already configured, so lines can be shown as already chosen. */
+  /** Lines seen recently, newest last. */
+  lines: readonly ChatLine[];
   chosen: string[];
   onPick(text: string, colors: RGB[]): void;
   onClose(): void;
 };
 
 /**
- * Pick trigger text by capturing the chatbox and clicking real lines.
+ * Pick trigger text by clicking a line that actually happened.
  *
  * Typing trigger text by hand means guessing at the game's exact wording and
- * punctuation, and a near miss fails silently. Clicking a line that already
- * happened cannot be misspelled, and its colours come along automatically.
+ * punctuation, and a near miss fails silently. Clicking a real line cannot be
+ * misspelled, and its colours come along automatically.
  */
-export function ChatPicker({ open, chosen, onPick, onClose }: ChatPickerProps) {
+export function ChatPicker({ open, lines, chosen, onPick, onClose }: ChatPickerProps) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [result, setResult] = useState<{ lines: ChatLine[]; boxes: number } | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const capture = useCallback(() => {
-    const probe = probeChatLines();
-    if (probe === null) {
-      setFailed(true);
-      setResult(null);
-      return;
-    }
-    setFailed(false);
-    setResult(probe);
-  }, []);
 
   useEffect(() => {
     const d = ref.current;
     if (d === null) return;
-    if (open && !d.open) {
-      d.showModal();
-      capture();
-    }
+    if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
-  }, [open, capture]);
+  }, [open]);
+
+  const already = new Set(chosen);
 
   return (
-    <dialog ref={ref} class="dlg--wide" onCancel={onClose}>
-      <h2>Pick chat lines</h2>
+    <dialog ref={ref} onCancel={onClose}>
+      <h2>Pick a chat line</h2>
       <p class="fld__help">
-        Everything currently in your chatbox is listed below. Click a line to use it as trigger
-        text — its colours are added to the filter for you.
+        The most recent lines the plugin has seen. Clicking one adds its text and its colours
+        together — a line only matches alongside the colours it was written in.
       </p>
 
-      {failed ? (
-        <p class="fld__help fld__help--warn">
-          Could not find a chatbox. Open one in game, then capture again.
-        </p>
-      ) : null}
-
-      {result !== null && result.lines.length === 0 ? (
-        <p class="fld__help fld__help--warn">
-          Found {result.boxes} chatbox{result.boxes === 1 ? "" : "es"} but no readable text. Say
-          something in game, then capture again.
-        </p>
-      ) : null}
-
-      {result !== null && result.lines.length > 0 ? (
-        <ul class="chatlines">
-          {result.lines.map((line, i) => {
-            const already = chosen.includes(line.text);
-            return (
-              <li key={i}>
-                <button
-                  class={`chatline${already ? " chatline--chosen" : ""}`}
-                  title={already ? "Already used by this alert" : "Use this line as trigger text"}
-                  onClick={() => onPick(line.text, line.colors)}
-                >
-                  <span
-                    class="chatline__text"
-                    style={{ color: rgbCss(line.colors[0] ?? [255, 255, 255]) }}
-                  >
-                    {line.text}
-                  </span>
-                  <span class="chatline__dots">
-                    {line.colors.map((c, n) => (
-                      <span key={n} class="chatline__dot" style={{ background: rgbCss(c) }} />
-                    ))}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+      {lines.length === 0 ? (
+        <p class="fld__help">No chat lines seen yet. They appear here as they arrive.</p>
+      ) : (
+        <ul class="issues">
+          {[...lines].reverse().map((l, i) => (
+            <li key={`${i}-${l.text}`}>
+              <button
+                class="btn btn--ghost"
+                disabled={already.has(l.text)}
+                style={l.colors[0] !== undefined ? { color: rgbCss(l.colors[0]) } : undefined}
+                onClick={() => onPick(l.text, [...l.colors])}
+              >
+                {l.text}
+              </button>
+            </li>
+          ))}
         </ul>
-      ) : null}
+      )}
 
       <div class="dlg__actions">
-        <button class="btn btn--ghost" onClick={capture}>
-          Recapture
-        </button>
-        <button class="btn" onClick={onClose}>
-          Done
+        <button class="btn btn--ghost" onClick={onClose}>
+          Cancel
         </button>
       </div>
     </dialog>
