@@ -8,6 +8,7 @@ local bolt = require("bolt")
 bolt.checkversion(1, 0)
 
 local bridge = require("lua.bridge")
+local chat = require("lua.detect.chat")
 
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
@@ -53,6 +54,8 @@ bolt.onmousebutton(function ()
 end)
 bolt.onmousemotion(function () lastmove = bolt.time() end)
 bolt.onscroll(function () lastmove = bolt.time() end)
+
+bolt.onrender2d(function (event) chat.onrender2d(event) end)
 
 --- Bolt's character strings are empty or NUL-led when not logged in.
 local function nonempty(value)
@@ -106,6 +109,22 @@ bolt.onswapbuffers(function ()
   lasttick = now
   tick = tick + 1
 
+  -- Ask for one chat scan per tick. render2d fires many times a frame, and
+  -- scanning every one of them is pure waste.
+  chat.request()
+
+  local lines = chat.drain()
+  if lines ~= nil then
+    local out = {}
+    for i, text in ipairs(lines) do
+      -- The module reads text but reports no colour. The browser treats an empty
+      -- colour list as "unknown" and declines to filter on it, rather than
+      -- treating it as a mismatch that would silence every colour-filtered alert.
+      out[i] = { text = text, colors = {}, fragments = { text } }
+    end
+    link:send({ t = "chat", lines = out })
+  end
+
   link:send({
     t = "state",
     tick = tick,
@@ -120,5 +139,7 @@ bolt.onswapbuffers(function ()
     -- name could in principle be blank without meaning "logged out".
     loggedIn = characterid() ~= nil,
     characterName = charactername(),
+    chatAvailable = chat.available(),
+    chatScrolledUp = chat.scrolledup(),
   })
 end)

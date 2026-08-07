@@ -24,6 +24,17 @@ export type ChatVars = z.infer<typeof ChatVars>;
 
 function colorMatches(line: ChatLine, colors: readonly RGB[]): boolean {
   if (colors.length === 0) return true;
+
+  // A line whose colour could not be read must not be EXCLUDED by a colour
+  // filter. Bolt's chat module reads text but reports no colour, and 71 of the
+  // 108 alerts in the reference config specify colours -- treating "unknown" as
+  // "mismatch" would silently disable almost every chat alert.
+  //
+  // Fails open on purpose, consistent with the login gate: a wrong "no" silences
+  // an alert, which is the failure this project exists to remove, while a wrong
+  // "yes" costs a glance. The text match still has to succeed either way.
+  if (line.colors.length === 0) return true;
+
   // Any colour present in the line counts: the relevant part of a message is
   // often not its first fragment.
   return colors.some((c) =>

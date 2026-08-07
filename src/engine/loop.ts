@@ -39,6 +39,8 @@ export type LoopDeps = {
   state?: () => GameState;
   /** New chat lines since the previous tick. Draining is the caller's job. */
   chatLines?: () => readonly ChatLine[];
+  /** Whether chat is currently readable. Defaults to trusting the connection. */
+  chatAvailable?: () => boolean;
 };
 
 /** Build a runtime for a stored alerter, or null when its type is unimplemented/invalid. */
@@ -125,9 +127,11 @@ export class TickLoop {
       mouseIdleMs: this.deps.mouseIdleMs(),
       connected,
       chatLines: this.deps.chatLines?.() ?? [],
-      // Chat is readable whenever the plugin is talking to us: Bolt reads the
-      // draw calls, so there is no chatbox to locate and nothing to lose track of.
-      chatAvailable: connected,
+      // Not simply `connected`: chat needs message timestamps enabled in game,
+      // and goes unreadable when the box is scrolled up. Both are states the
+      // user can fix, and a chat alert must report itself blind rather than
+      // healthy-and-silent while either holds.
+      chatAvailable: connected && (this.deps.chatAvailable?.() ?? true),
       state: this.deps.state?.() ?? NO_STATE,
     };
 

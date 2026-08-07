@@ -1,0 +1,3 @@
+[submodule "modules/chat"]
+	path = modules/chat
+	url = https://codeberg.org/adamcake/bolt-chatmodule.git

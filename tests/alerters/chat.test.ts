@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatAlerter } from "~/alerters/chat";
+import { chatAlerter, ChatVars } from "~/alerters/chat";
 import type { AlerterContext, ChatLine, RGB } from "~/engine/types";
 import { NO_STATE } from "~/engine/types";
 
@@ -148,5 +148,45 @@ describe("chatAlerter", () => {
     a.check(ctx({ chatLines: [line("A Seren spirit appears", [0, 255, 255])] }));
     a.reset?.();
     expect(a.check(ctx({ chatLines: [] })).triggered).toBe(false);
+  });
+});
+
+// Bolt's chat module reads text but reports no colour, and 71 of the 108 alerts
+// in the reference config specify colours. Treating "colour unknown" as "colour
+// mismatch" would silently disable almost every chat alert — the exact failure
+// this project exists to remove. Absent colours must fail OPEN.
+describe("chat colour matching when the reader cannot report colours", () => {
+  it("still fires an alert configured with colours", () => {
+    const a = chatAlerter.create(
+      ChatVars.parse({
+        lines: [{ text: "Seren spirit", percent: 100 }],
+        colors: [[0, 255, 255]],
+      }),
+    );
+
+    const r = a.check(
+      ctx({ chatLines: [{ text: "A Seren spirit appears", colors: [], fragments: [] }] }),
+    );
+
+    expect(r.triggered).toBe(true);
+  });
+
+  // A line that DOES report a colour is still filtered by it, so nothing is lost
+  // if colour extraction is added later.
+  it("still rejects a line whose reported colour does not match", () => {
+    const a = chatAlerter.create(
+      ChatVars.parse({
+        lines: [{ text: "Seren spirit", percent: 100 }],
+        colors: [[0, 255, 255]],
+      }),
+    );
+
+    const r = a.check(
+      ctx({
+        chatLines: [{ text: "A Seren spirit appears", colors: [[255, 0, 0]], fragments: [] }],
+      }),
+    );
+
+    expect(r.triggered).toBe(false);
   });
 });

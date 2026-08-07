@@ -99,10 +99,22 @@ export const StateMessageSchema = z.object({
   models: z.array(z.string()).default([]),
   craftProgress: Fraction.nullable().default(null),
   /**
-   * The next three have no detection yet — they land in Phase 2. They default to
-   * null rather than to a false or an empty list on purpose: "not implemented"
-   * has to read as "cannot see", so the alerters that depend on them report
-   * `functional: false` instead of confidently reporting nothing is happening.
+   * Whether chat could be read on the last scan.
+   *
+   * Defaults FALSE, unlike the detection fields above: chat requires message
+   * timestamps to be enabled in game, and a plugin that says nothing about chat
+   * has not read any. Claiming otherwise would make every chat alert look
+   * healthy while blind.
+   */
+  chatAvailable: z.boolean().default(false),
+  /** Chat box scrolled up, so new messages are off-screen and unreadable. */
+  chatScrolledUp: z.boolean().default(false),
+  /**
+   * The next three have no detection yet — they land later in Phase 2. They
+   * default to null rather than to a false or an empty list on purpose: "not
+   * implemented" has to read as "cannot see", so the alerters that depend on
+   * them report `functional: false` instead of confidently reporting that
+   * nothing is happening.
    */
   dialogOpen: z.boolean().nullable().default(null),
   target: TargetSchema.nullable().default(null),

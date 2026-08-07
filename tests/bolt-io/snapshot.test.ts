@@ -16,6 +16,8 @@ function stateAt(tick: number): StateMessage {
     player: null,
     models: [],
     craftProgress: null,
+    chatAvailable: true,
+    chatScrolledUp: false,
     dialogOpen: null,
     target: null,
     newDrops: null,

@@ -22,6 +22,10 @@ https://rm-sage.github.io/Afk-Goblin/meta.json
 Then hit **Import from AfkWarden** and paste a preset exported from AfkWarden's save-icon dialog
 (the whole `afkscape_presets` blob works too).
 
+**Chat alerts need in-game message timestamps enabled.** Chat is located by its `[HH:MM:SS]`
+prefix, so with timestamps off nothing is read at all. Chat also goes unreadable while the box is
+scrolled up.
+
 An alert that cannot see what it needs shows a **no data** badge rather than failing quietly.
 
 ## Why

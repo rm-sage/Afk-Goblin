@@ -36,6 +36,7 @@ const loop = new TickLoop({
   loggedIn: () => snapshot.state?.loggedIn ?? false,
   suppressWhenLoggedOut: () => settings.suppressWhenLoggedOut,
   state: () => view.state,
+  chatAvailable: () => snapshot.state?.chatAvailable ?? false,
   chatLines: () => {
     const lines = snapshot.drainChat();
     if (lines.length > 0) {

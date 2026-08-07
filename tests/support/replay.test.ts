@@ -22,6 +22,8 @@ function stateAt(tick: number, over: Record<string, unknown> = {}) {
     player: null,
     models: [],
     craftProgress: null,
+    chatAvailable: true,
+    chatScrolledUp: false,
     dialogOpen: null,
     target: null,
     newDrops: null,

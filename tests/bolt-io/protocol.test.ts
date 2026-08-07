@@ -200,3 +200,26 @@ describe("decodePluginMessage, on fields Lua omitted because they were nil", () 
     expect(msg.models).toEqual([]);
   });
 });
+
+// Chat needs message timestamps enabled in game, and goes unreadable when the
+// box is scrolled up. Both are states the user can fix, so they must reach the
+// UI rather than presenting as "no messages ever arrive".
+describe("decodePluginMessage, chat readability", () => {
+  it("carries chat availability and scroll state", () => {
+    const msg = decodePluginMessage(
+      frame({ ...STATE, chatAvailable: true, chatScrolledUp: true }),
+    );
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.chatAvailable).toBe(true);
+    expect(msg.chatScrolledUp).toBe(true);
+  });
+
+  it("defaults to unreadable when the plugin says nothing about chat", () => {
+    const msg = decodePluginMessage(frame(STATE));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.chatAvailable).toBe(false);
+    expect(msg.chatScrolledUp).toBe(false);
+  });
+});
