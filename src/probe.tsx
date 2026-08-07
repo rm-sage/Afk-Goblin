@@ -14,6 +14,8 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { listenForPlugin, requestClose, sendToPlugin } from "~/bolt-io/host";
 import { SnapshotStore } from "~/bolt-io/snapshot";
+import { SessionRecorder } from "~/bolt-io/recorder";
+import { decodePluginMessage } from "~/bolt-io/protocol";
 import type { StateMessage } from "~/bolt-io/protocol";
 
 const store = new SnapshotStore(() => Date.now());
@@ -26,6 +28,11 @@ type LogLine = { at: number; text: string };
 // has, which is earlier than any effect runs. Subscribing in useEffect loses
 // everything in that queue -- which is exactly how the startup handshake went
 // missing the first time this ran in-game.
+// Records the whole bridge stream so a real session can be replayed in tests.
+// This is what replaces Alt1's PasteInput workflow, and improves on it: a
+// timeline rather than a single frame.
+const recorder = new SessionRecorder(() => Date.now());
+
 const earlyLog: LogLine[] = [];
 const tickTimes: number[] = [];
 let lastTickAt: number | null = null;
@@ -37,6 +44,9 @@ window.addEventListener("message", (event: Event): void => {
   if (typeof data !== "object" || data === null) return;
   if (data.type !== "pluginMessage") return;
   if (!(data.content instanceof ArrayBuffer)) return;
+
+  const decoded = decodePluginMessage(data.content);
+  if (decoded !== null) recorder.record(decoded);
 
   // Observation only: what bytes actually arrived, including anything the
   // schema rejected and would otherwise silently drop.
@@ -114,6 +124,22 @@ function Probe() {
         </button>{" "}
         <button onClick={() => sendToPlugin({ t: "flash" })}>Flash window</button>{" "}
         <button onClick={() => requestClose()}>Request close</button>
+      </p>
+
+      <h2 style="font-size: 13px; margin: 12px 0 4px">Session recording</h2>
+      <p>
+        {recorder.length} messages captured{" "}
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(JSON.stringify(recorder.toSession()));
+          }}
+        >
+          Copy session JSON
+        </button>{" "}
+        <button onClick={() => recorder.clear()}>Clear</button>
+      </p>
+      <p style="color: #666">
+        Paste into tests/fixtures/sessions/ and drive it through the engine with the replay helper.
       </p>
       <p style="color: #666">
         Save, then restart the plugin: the stored blob should come back as a config message below.
