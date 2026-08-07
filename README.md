@@ -12,17 +12,17 @@ reliability defects that make the original intermittently unusable.
 
 ## Install
 
-Open this URL **inside the Alt1 browser** — an **Add App** button appears in the toolbar:
+A [Bolt Launcher](https://bolt.adamcake.com/) plugin. Enable the plugin loader in Bolt's settings,
+then add from this URL:
 
 ```
-https://rm-sage.github.io/AFK Goblin/
+https://rm-sage.github.io/Afk-Goblin/meta.json
 ```
 
-Then open it, hit **Import from AfkWarden**, and paste a preset exported from AfkWarden's save-icon
-dialog (the whole `afkscape_presets` blob works too).
+Then hit **Import from AfkWarden** and paste a preset exported from AfkWarden's save-icon dialog
+(the whole `afkscape_presets` blob works too).
 
-Needs the *pixel*, *gamestate* and *overlay* permissions. Inactivity alerts depend on gamestate; an
-alert that cannot see what it needs shows a **no data** badge rather than failing quietly.
+An alert that cannot see what it needs shows a **no data** badge rather than failing quietly.
 
 ## Why
 
@@ -90,19 +90,28 @@ Existing AfkWarden presets import directly.
 
 ## Stack
 
-TypeScript · Preact · zod · Vite · [`alt1`](https://github.com/skillbert/alt1) 0.1.3
+Lua (detection) · TypeScript · Preact · zod · Vite
 
-Targets Chromium 108, which is what Alt1 1.6.0 embeds.
+Detection runs as Lua inside the game process and pushes state snapshots; rule evaluation, storage
+and the whole UI run in an embedded browser. The Lua layer is the part that cannot be unit-tested,
+so it deliberately holds the least logic. See
+[`docs/superpowers/specs/2026-08-06-bolt-migration-design.md`](docs/superpowers/specs/2026-08-06-bolt-migration-design.md).
 
 ## Development
 
 ```sh
 npm install
-npm run dev
+npm run build
 ```
 
-Most of the reader layer can be developed in an ordinary browser: `alt1/base` exports `PasteInput`,
-so screenshots can be pasted in and replayed without running inside Alt1.
+The repo root **is** the plugin directory — `bolt.json`, `main.lua`, `lua/` and the built `app/` —
+so there is no packaging step while developing. Point Bolt at `bolt.json` via *add from file* and
+the loop is `npm run build`, then restart the plugin.
+
+`app/probe.html` is a bridge diagnostics page: handshake, tick rate, activity timers, both message
+directions and config round-trip. It exists because the Lua layer has no unit tests, so seeing it
+behave in-game is the only verification available. CI runs `luac -p` over every Lua file for the
+same reason.
 
 ## Credit
 
