@@ -28,6 +28,14 @@ local buffs, debuffs = {}, {}
 --- Whether anything was read on the last completed scan.
 local seenany = false
 
+--- How many icons were offered by onrendericon during the scan, and how many of
+--- those produced readable buff details.
+---
+--- Diagnostics, not decoration. "No buffs are active" has three very different
+--- causes -- no icon events at all, icons arriving but the details read failing,
+--- or genuinely no buffs -- and they are indistinguishable from an empty list.
+local iconsseen = 0
+
 local wanted = false
 
 function M.request()
@@ -35,6 +43,7 @@ function M.request()
   -- and carrying the previous tick's entries would keep it alive forever.
   buffs, debuffs = {}, {}
   seenany = false
+  iconsseen = 0
   wanted = true
 end
 
@@ -47,6 +56,11 @@ function M.sawany()
   return seenany
 end
 
+--- Icons offered during the last scan. See `iconsseen`.
+function M.iconcount()
+  return iconsseen
+end
+
 --- An icon is about to be drawn. Remember what and where.
 function M.onrendericon(event)
   if not wanted then return end
@@ -57,6 +71,7 @@ function M.onrendericon(event)
   local ok, verts = pcall(event.modelvertexcount, event, 1)
   if not ok or verts == nil then return end
 
+  iconsseen = iconsseen + 1
   pending = string.format("%d:%d", models, verts)
   local x, y = event:xywh()
   pendingx, pendingy = x or 0, y or 0

@@ -269,6 +269,7 @@ function paint(): void {
       }}
       liveBuffs={snapshot.state?.buffs ?? []}
       liveDebuffs={snapshot.state?.debuffs ?? []}
+      buffIconsSeen={snapshot.state?.buffIcons ?? 0}
       recentChat={recentChat}
       soundNames={[...sounds.names].sort()}
       missingSounds={missingSounds()}

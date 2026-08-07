@@ -35,11 +35,18 @@ local scan = 0
 --- leak an entry forever.
 local FORGET_AFTER_SCANS = 20
 
---- Whether any box was readable on the most recent scan.
+--- Whether any box was readable during the scan window.
 local readable = false
 
---- Whether every readable box was scrolled up.
+--- Whether EVERY box found was scrolled up. Accumulated across the whole window,
+--- not per event: each box renders in its own render2d event, so judging per
+--- event lets whichever box happened to render last decide for all of them --
+--- and one scrolled-up box would then report the entire chat as unreadable.
 local scrolled = false
+
+--- Accumulators for the window in progress.
+local sawbox = false
+local sawreadablebox = false
 
 --- True when a scan is wanted on the next render2d event.
 local wanted = false
@@ -48,6 +55,10 @@ local wanted = false
 function M.request()
   wanted = true
   scan = scan + 1
+  -- A fresh window starts with fresh accumulators; the published values below
+  -- keep their previous readings until this window has something to say.
+  sawbox = false
+  sawreadablebox = false
 end
 
 --- Close the scan window. Called at the START of the next frame, so a window
@@ -58,8 +69,24 @@ end
 --- the first box and silently ignores every other one. That is precisely the
 --- single-box behaviour this module exists to avoid.
 function M.endscan()
+  if not wanted then return end
   wanted = false
+
+  -- Publish only if the window actually saw a chat box. A frame that rendered
+  -- none says nothing about readability, and treating it as "unreadable" would
+  -- flicker the alert state every time chat happens not to redraw.
+  if sawbox then
+    readable = true
+    scrolled = not sawreadablebox
+  end
 end
+
+--- Whether chat is readable RIGHT NOW, ignoring boxes that are scrolled up.
+---
+--- Any single readable box is enough. Requiring all of them would mean scrolling
+--- one box up to read history silenced every alert watching the others, which is
+--- both surprising and exactly the sort of silent failure this app exists to
+--- remove.
 
 --- Hands over everything read since the last call, oldest first.
 function M.drain()
@@ -100,7 +127,6 @@ function M.onrender2d(event)
   local verticesperimage = event:verticesperimage()
 
   local foundany = false
-  local allscrolled = true
 
   for i = 1, vertexcount, verticesperimage do
     local ax, ay, aw, ah = event:vertexatlasdetails(i)
@@ -140,7 +166,8 @@ function M.onrender2d(event)
       if ischat then
         box.seen = scan
         foundany = true
-        if not isscrolled then allscrolled = false end
+        sawbox = true
+        if not isscrolled then sawreadablebox = true end
       else
         -- Not a chat box after all; do not keep state for it.
         if box.mostrecent == nil then boxes[key] = nil end
@@ -149,9 +176,6 @@ function M.onrender2d(event)
   end
 
   if foundany then
-    readable = true
-    scrolled = allscrolled
-
     -- Retire boxes that have not been seen for a while, so closing a tab or
     -- moving the interface does not leak entries.
     for key, box in pairs(boxes) do

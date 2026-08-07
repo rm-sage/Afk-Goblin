@@ -28,6 +28,8 @@ export type BuffPickerProps = {
   isDebuff: boolean;
   /** Buffs currently on the bar, as pushed by the plugin. */
   buffs: readonly BuffSlot[];
+  /** Icons the plugin saw but could not read details for. Diagnostic only. */
+  iconsSeen: number;
   onPick(buffId: string): void;
   onClose(): void;
 };
@@ -45,7 +47,14 @@ export type BuffPickerProps = {
  * a real limitation, and the dialog says so rather than showing an empty list
  * with no explanation.
  */
-export function BuffPicker({ open, isDebuff, buffs, onPick, onClose }: BuffPickerProps) {
+export function BuffPicker({
+  open,
+  isDebuff,
+  buffs,
+  iconsSeen,
+  onPick,
+  onClose,
+}: BuffPickerProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -69,6 +78,16 @@ export function BuffPicker({ open, isDebuff, buffs, onPick, onClose }: BuffPicke
       {buffs.length === 0 ? (
         <p class="fld__help">
           No {what}s are active. Apply one in game and this list will fill in.
+          {iconsSeen > 0 ? (
+            <>
+              {" "}
+              <strong>
+                The plugin did see {iconsSeen} icon{iconsSeen === 1 ? "" : "s"} but could not read
+                their timers
+              </strong>{" "}
+              — that is a detection bug rather than an empty buff bar, and worth reporting.
+            </>
+          ) : null}
         </p>
       ) : (
         <ul class="issues">

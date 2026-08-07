@@ -19,6 +19,7 @@ function stateAt(tick: number): StateMessage {
     chatAvailable: true,
     chatScrolledUp: false,
     chatBoxes: 1,
+    buffIcons: 0,
     dialogOpen: null,
     target: null,
     newDrops: null,

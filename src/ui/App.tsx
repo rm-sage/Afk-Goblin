@@ -39,6 +39,7 @@ export type AppProps = {
   chat: { available: boolean; scrolledUp: boolean; boxes: number };
   liveBuffs: readonly BuffSlot[];
   liveDebuffs: readonly BuffSlot[];
+  buffIconsSeen: number;
   recentChat: readonly ChatLine[];
   onAddSounds(files: FileList): void;
   onRemoveSound(name: string): void;
@@ -522,6 +523,7 @@ export function App(props: AppProps) {
         soundNames={props.soundNames}
         liveBuffs={props.liveBuffs}
         liveDebuffs={props.liveDebuffs}
+        buffIconsSeen={props.buffIconsSeen}
         recentChat={props.recentChat}
         onSave={(next) => {
           props.onSaveAlert(editing?.index ?? null, next);

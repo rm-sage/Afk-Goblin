@@ -171,6 +171,7 @@ bolt.onswapbuffers(function ()
     chatScrolledUp = chat.scrolledup(),
     chatBoxes = chat.boxcount(),
     stats = stats.read(),
+    buffIcons = buffs.iconcount(),
     buffs = buffslist,
     debuffs = debuffslist,
   })
