@@ -19,7 +19,10 @@ export const BuffTypeSchema = z.object({
 });
 
 export const BuffVars = z.object({
-  bufftype: BuffTypeSchema,
+  // Defaulted so a NEW buff alert validates before a buff has been chosen.
+  // Without this, switching an alert's type to "buffs" produced vars that failed
+  // the schema, and the editor silently reverted to the previous type.
+  bufftype: BuffTypeSchema.default(BuffTypeSchema.parse({})),
   /** Seconds remaining at which the progress bar starts filling. */
   starttime: z.number().int().positive().default(150),
   /** Seconds remaining at which the alert fires. */

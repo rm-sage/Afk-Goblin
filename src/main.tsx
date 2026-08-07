@@ -8,7 +8,8 @@ import { SoundLibrary, labelFromFilename, resolveSound } from "~/alerting/sound-
 import { shouldSuppress } from "~/alerting/taskbar";
 import { TICK_MS, TickLoop } from "~/engine/loop";
 import { Store } from "~/store/storage";
-import { PresetSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
+import { z } from "zod";
+import { PresetSchema, SettingsSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
 import type { ChatLine } from "~/engine/types";
 import { applyDrop } from "~/engine/reorder";
 import { speak } from "~/alerting/speech";
@@ -22,9 +23,66 @@ const snapshot = new SnapshotStore(() => Date.now());
 listenForPlugin(snapshot);
 
 const store = new Store();
+
+/**
+ * Mirror everything to the plugin's own config file.
+ *
+ * localStorage is scoped to the page's origin, and a plugin served over
+ * `plugin://` has no guarantee that bucket survives a reinstall, a version bump
+ * or a path change — which during development means re-importing presets on
+ * every restart. `bolt.saveconfig` writes to the plugin's config directory,
+ * keyed by character, and is the durable side.
+ *
+ * localStorage stays as the fast local read; this is the copy that outlives it.
+ */
+function persist(): void {
+  sendToPlugin({
+    t: "save",
+    data: JSON.stringify({ presets, settings, activeName }),
+  });
+}
 let presets: Preset[] = store.loadPresets();
 let settings: Settings = store.loadSettings();
 let activeName: string | null = store.loadActivePresetName() ?? presets[0]?.name ?? null;
+
+/**
+ * Adopt the plugin's stored config once it arrives.
+ *
+ * Only when there is nothing local to lose: the blob is handed over at startup,
+ * and overwriting newer local edits with it would silently discard work.
+ */
+function hydrateFromPlugin(): void {
+  const blob = snapshot.takeConfig();
+  if (blob === null) return;
+  if (presets.length > 0) return;
+
+  try {
+    const parsed = JSON.parse(blob) as {
+      presets?: unknown;
+      settings?: unknown;
+      activeName?: unknown;
+    };
+    const restored = z.array(PresetSchema).safeParse(parsed.presets);
+    if (!restored.success || restored.data.length === 0) return;
+
+    presets = restored.data;
+    store.savePresets(presets);
+        persist();
+
+    const s = SettingsSchema.safeParse(parsed.settings);
+    if (s.success) {
+      settings = s.data;
+      store.saveSettings(settings);
+    }
+
+    activeName =
+      typeof parsed.activeName === "string" ? parsed.activeName : (presets[0]?.name ?? null);
+    store.saveActivePresetName(activeName);
+    applyPreset();
+  } catch {
+    // A corrupt blob must not stop the app booting; local state still stands.
+  }
+}
 
 const view = new GameStateView(snapshot);
 
@@ -139,6 +197,7 @@ let recentChat: ChatLine[] = [];
 function tick(): void {
   // Fold XP drops into the running totals before stepping, so alerters see this
   // tick's gains rather than last tick's.
+  hydrateFromPlugin();
   view.drainInto();
   loop.step();
   dispatchAlerts();
@@ -159,6 +218,7 @@ function paint(): void {
       onSelectPreset={(name) => {
         activeName = name;
         store.saveActivePresetName(name);
+        persist();
         applyPreset();
       }}
       onImport={(imported) => {
@@ -167,6 +227,7 @@ function paint(): void {
         for (const p of imported) byName.set(p.name, p);
         presets = [...byName.values()];
         store.savePresets(presets);
+        persist();
         if (activeName === null || !byName.has(activeName)) {
           activeName = imported[0]?.name ?? null;
           store.saveActivePresetName(activeName);
@@ -176,6 +237,7 @@ function paint(): void {
       onSettings={(next) => {
         settings = next;
         store.saveSettings(next);
+        persist();
         paint();
       }}
       onTogglePause={(index) => {
@@ -235,6 +297,7 @@ function mutateAlerts(fn: (alerts: AlerterBase[]) => void): void {
   // drift apart.
   preset.groups = [...new Set(preset.alerters.map((a) => a.group).filter((g): g is string => g !== null))];
   store.savePresets(presets);
+        persist();
   applyPreset();
 }
 
@@ -275,6 +338,7 @@ function handlePresetAction(action: PresetAction): void {
   }
 
   store.savePresets(presets);
+        persist();
   store.saveActivePresetName(activeName);
   applyPreset();
 }

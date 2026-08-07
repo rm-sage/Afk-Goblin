@@ -44,11 +44,21 @@ local scrolled = false
 --- True when a scan is wanted on the next render2d event.
 local wanted = false
 
---- Set once per master tick rather than per frame: render2d fires many times a
---- frame and scanning all of them is pure waste.
+--- Open a scan window, once per master tick.
 function M.request()
   wanted = true
   scan = scan + 1
+end
+
+--- Close the scan window. Called at the START of the next frame, so a window
+--- covers exactly one full frame.
+---
+--- It must span the whole frame rather than stopping at the first chat box
+--- found: each box is drawn in its OWN render2d event, so closing early reads
+--- the first box and silently ignores every other one. That is precisely the
+--- single-box behaviour this module exists to avoid.
+function M.endscan()
+  wanted = false
 end
 
 --- Hands over everything read since the last call, oldest first.
@@ -139,7 +149,6 @@ function M.onrender2d(event)
   end
 
   if foundany then
-    wanted = false
     readable = true
     scrolled = allscrolled
 

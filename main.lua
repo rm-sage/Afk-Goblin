@@ -123,6 +123,11 @@ local tick = 0
 local lasttick = bolt.time()
 
 bolt.onswapbuffers(function ()
+  -- Close any scan window opened last tick. Doing it here rather than when the
+  -- first result arrives is what lets a window span a whole frame, and a whole
+  -- frame is what it takes to see every chat box.
+  chat.endscan()
+
   local now = bolt.time()
   if now >= lasttick and now - lasttick < TICK_US then return end
   lasttick = now
