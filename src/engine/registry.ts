@@ -46,3 +46,29 @@ export function implementedModules(): ReadonlyArray<AlerterModule<never>> {
 export function isImplemented(type: string): boolean {
   return BY_TYPE.has(type);
 }
+
+/**
+ * Types whose alerter logic exists but whose DETECTION does not yet.
+ *
+ * A distinct state from "not implemented". These alerts load, validate, edit and
+ * save correctly — the plugin simply cannot see what they need, so they sit at
+ * `functional: false` forever. Left in the list rather than hidden, because an
+ * imported preset that uses one must keep its alert rather than lose it, but
+ * flagged in the editor so nobody spends an evening wondering why it never fires.
+ *
+ * Detection for these lands with the remaining Phase 2 work; see
+ * docs/superpowers/specs/2026-08-06-bolt-migration-design.md.
+ */
+const AWAITING_DETECTION = new Set([
+  // Blocked on identifying the XP-drop '+' glyph against a live client.
+  "xpcounter",
+  "bigxp",
+  // No detection written yet.
+  "dialogtextsimple",
+  "targetdeath",
+  "drops",
+]);
+
+export function awaitsDetection(type: string): boolean {
+  return AWAITING_DETECTION.has(type);
+}

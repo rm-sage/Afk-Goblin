@@ -166,21 +166,28 @@ export function FieldEditor({ spec, value, onChange, onCapture }: FieldEditorPro
     );
   }
 
-  // buffimage: the icon is captured from the game, not typed. Show what is stored
-  // and let it be cleared; capture lands with the in-game picker.
-  const buff = (value ?? {}) as { imgstr?: string; isdebuff?: boolean };
+  // buffimage: a buff is chosen from the ones currently active, not typed and no
+  // longer captured as pixels. An alert imported from AfkWarden still carries its
+  // old icon and no id, which is UNMIGRATED rather than broken -- say so, and
+  // point at the fix.
+  const buff = (value ?? {}) as { buffid?: string; imgstr?: string; isdebuff?: boolean };
+  const chosen = typeof buff.buffid === "string" && buff.buffid.length > 0;
+  const legacy = !chosen && typeof buff.imgstr === "string" && buff.imgstr.length > 0;
+
   return (
     <div class="fld">
       <label class="fld__label">{spec.label}</label>
       <div class="fld__row">
-        {typeof buff.imgstr === "string" && buff.imgstr.length > 0 ? (
-          <img
-            class="bufficon"
-            src={`data:image/png;base64,${buff.imgstr}`}
-            alt="Captured buff icon"
-          />
+        {chosen ? (
+          <span class="fld__suffix">
+            Watching <code>{buff.buffid}</code>
+          </span>
+        ) : legacy ? (
+          <span class="badge badge--err" title="Imported from AfkWarden; needs re-picking once.">
+            needs re-picking
+          </span>
         ) : (
-          <span class="fld__suffix">No icon captured</span>
+          <span class="fld__suffix">No buff chosen</span>
         )}
         <label class="fld__inline">
           <input
@@ -194,10 +201,16 @@ export function FieldEditor({ spec, value, onChange, onCapture }: FieldEditorPro
         </label>
         {onCapture !== undefined ? (
           <button class="btn btn--ghost btn--sm" onClick={onCapture}>
-            {typeof buff.imgstr === "string" && buff.imgstr.length > 0 ? "Recapture" : "Capture"}
+            {chosen ? "Change buff" : "Choose buff"}
           </button>
         ) : null}
       </div>
+      {legacy ? (
+        <p class="fld__help">
+          This alert was imported with a captured icon. Bolt identifies buffs differently, so
+          apply the buff in game and press <strong>Choose buff</strong> once to relink it.
+        </p>
+      ) : null}
       {help}
     </div>
   );

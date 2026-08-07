@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { AlerterBaseSchema, type AlerterBase } from "~/store/schema";
-import { getAlerterModule, implementedModules } from "~/engine/registry";
+import { getAlerterModule, implementedModules , awaitsDetection } from "~/engine/registry";
 import { KNOWN_ALERTER_TYPES } from "~/engine/known-types";
 import { TONES } from "~/alerting/tones";
 import { soundLabel } from "~/alerting/sound-library";
@@ -137,6 +137,14 @@ export function AlertEditor(props: AlertEditorProps) {
           ))}
         </datalist>
       </div>
+
+      {awaitsDetection(draft.type) ? (
+        <p class="fld__help" style="color: #c9a227">
+          <strong>This alert type cannot fire yet.</strong> Its settings save correctly, but the
+          plugin cannot see what it needs, so it will sit at “no data”. Detection is still being
+          built.
+        </p>
+      ) : null}
 
       {module?.fields.map((spec) => (
         <FieldEditor

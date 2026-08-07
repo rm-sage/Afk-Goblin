@@ -8,6 +8,7 @@ import { SettingsDialog } from "~/ui/SettingsDialog";
 import { useDragList, type DragState } from "~/ui/useDragList";
 import type { DropTarget } from "~/engine/reorder";
 import type { BuffSlot, ChatLine } from "~/engine/types";
+import { awaitsDetection } from "~/engine/registry";
 
 export type PresetAction =
   | { kind: "new"; name: string }
@@ -149,7 +150,14 @@ function Row({
       <span class="row__name">{a.config.name || "(unnamed)"}</span>
       <span class="row__side">
         {a.error !== null ? <span class="badge badge--err">!</span> : null}
-        {a.error === null && !a.state.functional ? (
+        {a.error === null && awaitsDetection(a.config.type) ? (
+          <span
+            class="badge"
+            title="Detection for this alert type is still being built, so it cannot fire yet."
+          >
+            not built yet
+          </span>
+        ) : a.error === null && !a.state.functional ? (
           <span class="badge" title="This alert cannot see what it needs right now.">
             no data
           </span>
