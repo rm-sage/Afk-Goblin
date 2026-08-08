@@ -31,10 +31,19 @@ export const BuffSlotSchema = z.object({
    * Bolt matches the game's texture atlas, so identity is a name, not a bitmap.
    */
   id: z.string().min(1),
-  /** Remaining seconds, or null when the timer text is unreadable. */
-  timeLeft: z.number().nullable(),
-  /** The parenthesised number some buffs carry, or null when absent. */
-  stacks: z.number().nullable(),
+  /**
+   * Remaining seconds, or null when no timer text is showing.
+   *
+   * DEFAULTED, not merely nullable, and the difference is load-bearing. Lua
+   * deletes a table key assigned nil, so an absent number reaches us as a
+   * MISSING FIELD and never as an explicit null. A nullable-only field rejects
+   * that, and one rejected buff fails the whole snapshot — which shows up as the
+   * plugin going silent the moment an ordinary buff appears, not as a buff with
+   * a missing timer. Same trap the `stats` field below documents.
+   */
+  timeLeft: z.number().nullable().default(null),
+  /** The parenthesised number some buffs carry, or null when absent. See above. */
+  stacks: z.number().nullable().default(null),
 });
 
 export const PlayerSchema = z.object({

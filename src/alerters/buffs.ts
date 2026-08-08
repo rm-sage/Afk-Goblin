@@ -102,6 +102,21 @@ export const buffsAlerter = defineAlerter<BuffVars>({
 
         let timeLeft = 0;
         const slot = slots.find((s) => s.id === vars.bufftype.buffid);
+
+        // ON THE BAR BUT WITH NO READABLE TIMER IS "CANNOT SEE", NOT "EXPIRED".
+        //
+        // A buff can be active and carry no countdown at all -- the module
+        // returns valid with a nil number for one (modules/buffs/buffs.lua:73,
+        // 89) -- and the wire keeps that distinct from a number
+        // (protocol.ts, BuffSlot.timeLeft is nullable). This fell through to
+        // timeLeft = 0 and then to `triggered: timeLeft <= endtime`, which is
+        // true for every threshold: an alert announcing a buff had run out while
+        // its icon sat lit on the bar. Same idiom as the unmigrated-alert branch
+        // above -- decline to answer rather than answer confidently and wrongly.
+        if (slot !== undefined && slot.timeLeft === null) {
+          return { triggered: false, bar: 0, functional: false };
+        }
+
         if (slot !== undefined) {
           if (slot.timeLeft !== null) {
             const compensated = compensateAbbreviation(slot.timeLeft);

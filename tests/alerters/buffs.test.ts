@@ -79,10 +79,29 @@ describe("buffsAlerter", () => {
     expect(r.functional).toBe(false);
   });
 
+  /**
+   * ABSENT AND PRESENT-BUT-UNREADABLE ARE OPPOSITE CASES, and the one above
+   * decides nothing about this one. A buff missing from the bar has run out, so
+   * it fires. A buff whose icon is RIGHT THERE with no readable countdown has
+   * not run out, and firing is the one thing that must not happen.
+   *
+   * This test asserted `triggered === true` — the exact behaviour its own name
+   * and comment call wrong — so it pinned the bug in place rather than catching
+   * it. The alerter defaulted `timeLeft` to 0 and fell through to
+   * `triggered: timeLeft <= endtime`, true for every threshold, and announced
+   * that a lit buff had expired.
+   */
   it("reports no data rather than firing when the timer is unreadable", () => {
-    // timeLeft null means the digits could not be read, which is not the same as
-    // the buff having expired.
-    expect(make({}).check(ctx([slot("overload", null)])).triggered).toBe(true);
+    const r = make({}).check(ctx([slot("overload", null)]));
+    expect(r.triggered).toBe(false);
+    expect(r.functional).toBe(false);
+  });
+
+  // The buff module returns a valid reading with no number for a buff that has
+  // no countdown at all, so this is a real state and not just a failed parse.
+  it("keeps a timerless buff distinct from one that has run out", () => {
+    expect(make({}).check(ctx([slot("overload", null)])).triggered).toBe(false);
+    expect(make({}).check(ctx([slot("somethingelse", 500)])).triggered).toBe(true);
   });
 });
 
