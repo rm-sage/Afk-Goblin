@@ -35,7 +35,8 @@
     "@types/node": "^26.1.2",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wasmoon": "^1.16.0"
   },
   "private": true
 }

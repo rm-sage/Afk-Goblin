@@ -3,8 +3,9 @@
 --
 -- This file holds no game logic on purpose. Everything here runs inside the
 -- game process, where an uncaught error stops the plugin (and Lua errors can
--- take the client with them), and none of it can be unit-tested. Detection
--- lives in lua/detect/*; rule evaluation lives in the browser.
+-- take the client with them). Detection lives in lua/detect/*; rule evaluation
+-- lives in the browser. Both this file and those run under test in tests/lua/,
+-- against a fake Bolt host.
 
 local bolt = require("bolt")
 local json = require("lua.json")

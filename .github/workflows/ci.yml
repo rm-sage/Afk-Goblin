@@ -31,9 +31,10 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # The Lua layer cannot be unit-tested -- it only runs inside the game
-      # process -- so a syntax check is the one automated guarantee available.
-      # Without it a typo ships and only surfaces as a dead plugin in-game.
+      # `npm test` already runs the Lua layer in a real VM (tests/lua/), but it
+      # only loads the files main.lua reaches. This catches a syntax error in
+      # anything else -- including the vendored submodules -- which would
+      # otherwise ship and surface only as a dead plugin in-game.
       - name: Install Lua and zstd
         run: sudo apt-get update && sudo apt-get install -y lua5.4 zstd
       - name: Syntax-check every Lua file

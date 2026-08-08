@@ -28,8 +28,8 @@ export default defineConfig({
       input: {
         // The app itself.
         index: fileURLToPath(new URL("./index.html", import.meta.url)),
-        // Bridge diagnostics. Ships alongside because the Lua layer has no unit
-        // tests, so seeing it behave in-game is the only verification there is.
+        // Bridge diagnostics. Ships alongside because a fake Bolt host cannot
+        // verify the real one; see the comment at the top of src/probe.tsx.
         probe: fileURLToPath(new URL("./probe.html", import.meta.url)),
       },
     },

@@ -1,11 +1,11 @@
 /**
  * Bridge diagnostics page.
  *
- * The Lua layer only runs inside the game process and cannot be unit-tested, so
- * this is the counterpart: a page that exercises every part of the bridge and
- * shows what actually arrived. It answers the questions the test suite cannot —
- * does `plugin://` load, does the embedded browser work, do messages flow both
- * ways, does config persist, and how fast does the tick really run.
+ * The Lua layer's own logic is tested in `tests/lua/`, against a fake Bolt host.
+ * This page covers what a fake host by definition cannot: whether the REAL one
+ * behaves as documented. Does `plugin://` load, does the embedded browser work,
+ * do messages flow both ways, does config persist, and how fast does the tick
+ * really run.
  *
  * Kept permanently rather than thrown away: it is the only way to see the Lua
  * side behaving, and it will be just as useful when detection lands.
