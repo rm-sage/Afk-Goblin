@@ -20,7 +20,6 @@ function stateAt(tick: number): StateMessage {
     chatAvailable: true,
     chatScrolledUp: false,
     chatBoxes: 1,
-    buffIcons: 0,
     diag: DiagnosticsSchema.parse({}),
     dialogOpen: null,
     target: null,

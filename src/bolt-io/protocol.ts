@@ -235,13 +235,6 @@ export const StateMessageSchema = z.object({
    * decode as a plausible zero.
    */
   stats: StatsSchema.nullable().default(null),
-  /**
-   * Buff icons the plugin was offered on the last scan, whether or not their
-   * details could be read. Diagnostic: an empty `buffs` list with a non-zero
-   * count means the icons arrive but pairing them with their timer text fails,
-   * which is a completely different bug from never seeing an icon at all.
-   */
-  buffIcons: z.number().int().nonnegative().default(0),
   buffs: z.array(BuffSlotSchema).default([]),
   debuffs: z.array(BuffSlotSchema).default([]),
   player: PlayerSchema.nullable().default(null),

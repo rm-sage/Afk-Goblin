@@ -281,7 +281,10 @@ function paint(): void {
       }}
       liveBuffs={snapshot.state?.buffs ?? []}
       liveDebuffs={snapshot.state?.debuffs ?? []}
-      buffIconsSeen={snapshot.state?.buffIcons ?? 0}
+      diag={snapshot.state?.diag ?? null}
+      stats={snapshot.state?.stats ?? null}
+      probe={snapshot.probe}
+      onProbe={() => sendToPlugin({ t: "probe" })}
       recentChat={recentChat}
       soundNames={[...sounds.names].sort()}
       missingSounds={missingSounds()}
@@ -296,6 +299,12 @@ function paint(): void {
         void sounds.remove(name).then(paint);
       }}
       onPresetAction={handlePresetAction}
+      onSave={() => {
+        store.savePresets(presets);
+        store.saveSettings(settings);
+        store.saveActivePresetName(activeName);
+        persist();
+      }}
     />,
     root,
   );

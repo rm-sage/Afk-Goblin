@@ -28,8 +28,13 @@ export type BuffPickerProps = {
   isDebuff: boolean;
   /** Buffs currently on the bar, as pushed by the plugin. */
   buffs: readonly BuffSlot[];
-  /** Icons the plugin saw but could not read details for. Diagnostic only. */
-  iconsSeen: number;
+  /**
+   * Every icon the game drew last tick, inventory included — not just buff
+   * icons, because nothing distinguishes them before the details are parsed.
+   * Diagnostic only: a zero means the plugin is being told about no icons at
+   * all, so no buff could ever appear here however many are on the bar.
+   */
+  iconDraws: number;
   onPick(buffId: string): void;
   onClose(): void;
 };
@@ -51,7 +56,7 @@ export function BuffPicker({
   open,
   isDebuff,
   buffs,
-  iconsSeen,
+  iconDraws,
   onPick,
   onClose,
 }: BuffPickerProps) {
@@ -78,14 +83,12 @@ export function BuffPicker({
       {buffs.length === 0 ? (
         <p class="fld__help">
           No {what}s are active. Apply one in game and this list will fill in.
-          {iconsSeen > 0 ? (
+          {iconDraws === 0 ? (
             <>
               {" "}
-              <strong>
-                The plugin did see {iconsSeen} icon{iconsSeen === 1 ? "" : "s"} but could not read
-                their timers
-              </strong>{" "}
-              — that is a detection bug rather than an empty buff bar, and worth reporting.
+              <strong>The plugin is not being told about any icon draws at all</strong> — so no {what}{" "}
+              can appear here however many are on your bar. That is a detection bug rather than an
+              empty bar, and worth reporting.
             </>
           ) : null}
         </p>

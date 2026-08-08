@@ -26,7 +26,6 @@ function stateAt(tick: number, over: Record<string, unknown> = {}) {
     chatAvailable: true,
     chatScrolledUp: false,
     chatBoxes: 1,
-    buffIcons: 0,
     diag: DiagnosticsSchema.parse({}),
     dialogOpen: null,
     target: null,

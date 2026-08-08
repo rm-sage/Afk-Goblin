@@ -17,8 +17,8 @@ export type AlertEditorProps = {
   /** Buffs and debuffs currently on the bar, so the picker can offer real ones. */
   liveBuffs: readonly BuffSlot[];
   liveDebuffs: readonly BuffSlot[];
-  /** Buff icons the plugin saw last scan. Diagnostic for an empty picker. */
-  buffIconsSeen: number;
+  /** Icon draws the plugin was offered last tick. Diagnostic for an empty picker. */
+  buffIconDraws: number;
   /** Recently seen chat lines, so the picker can offer real ones. */
   recentChat: readonly ChatLine[];
   onSave(next: AlerterBase): void;
@@ -168,7 +168,7 @@ export function AlertEditor(props: AlertEditorProps) {
         open={picker === "buff"}
         isDebuff={isDebuff}
         buffs={isDebuff ? props.liveDebuffs : props.liveBuffs}
-        iconsSeen={props.buffIconsSeen}
+        iconDraws={props.buffIconDraws}
         onPick={(buffid) => {
           const existing = (draft.vars.bufftype ?? {}) as Record<string, unknown>;
           // imgstr is cleared: an id and a captured needle are alternative
