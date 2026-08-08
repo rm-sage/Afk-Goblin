@@ -45,6 +45,79 @@ describe("decodePluginMessage", () => {
     expect(msg.craftProgress).toBeNull();
   });
 
+  /**
+   * A buff with no parenthesised number reaches us with `stacks` ABSENT, not
+   * null: Lua deletes a table key assigned nil, so the encoder never sees it.
+   * A merely-nullable field rejects that, and rejecting it fails the whole
+   * snapshot — which would show as the plugin going silent the moment the first
+   * ordinary buff appeared.
+   */
+  it("decodes a buff whose optional fields were dropped by Lua", () => {
+    const msg = decodePluginMessage(frame({ ...STATE, buffs: [{ id: "2:1344", timeLeft: 27 }] }));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.buffs).toEqual([{ id: "2:1344", timeLeft: 27, stacks: null }]);
+  });
+
+  it("decodes a buff showing no timer at all", () => {
+    const msg = decodePluginMessage(frame({ ...STATE, buffs: [{ id: "2:1344" }] }));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.buffs).toEqual([{ id: "2:1344", timeLeft: null, stacks: null }]);
+  });
+
+  it("carries detection diagnostics through", () => {
+    const msg = decodePluginMessage(
+      frame({
+        ...STATE,
+        diag: {
+          chatBubbles: 2,
+          chatConfirmed: 1,
+          chatScrolledBoxes: 1,
+          chatBubblesEver: 3,
+          chatConfirmedEver: 2,
+          chatLines: 4,
+          buffIconDraws: 31,
+          buffIconsRead: 5,
+        },
+      }),
+    );
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.diag.chatBubbles).toBe(2);
+    expect(msg.diag.chatConfirmed).toBe(1);
+    expect(msg.diag.buffIconDraws).toBe(31);
+    expect(msg.diag.buffIconsRead).toBe(5);
+  });
+
+  /**
+   * The panel reads these unconditionally, so a plugin that predates them must
+   * decode to zeroes rather than making the whole snapshot fail — which would
+   * report the plugin as disconnected when it is merely older.
+   */
+  it("defaults diagnostics to zero when the plugin sends none", () => {
+    const msg = decodePluginMessage(frame(STATE));
+
+    if (msg?.t !== "state") throw new Error("expected a state message");
+    expect(msg.diag).toEqual({
+      chatBubbles: 0,
+      chatConfirmed: 0,
+      chatScrolledBoxes: 0,
+      chatBubblesEver: 0,
+      chatConfirmedEver: 0,
+      chatLines: 0,
+      render2dEvents: 0,
+      render2dScanned: 0,
+      buffIconDraws: 0,
+      buffIconsRead: 0,
+      buffPairAttempts: 0,
+      buffUnpaired: [],
+      buffOutlines: 0,
+      barsRead: 0,
+      chatAnchors: [],
+    });
+  });
+
   it("decodes a chat message carrying per-colour fragments", () => {
     const msg = decodePluginMessage(
       frame({

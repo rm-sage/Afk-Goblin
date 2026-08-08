@@ -1,4 +1,4 @@
-import type { ChatLine, PluginMessage, StateMessage, XpMessage } from "~/bolt-io/protocol";
+import type { ChatLine, PluginMessage, ProbeMessage, StateMessage, XpMessage } from "~/bolt-io/protocol";
 
 /**
  * How long a snapshot stays trustworthy without a fresh message.
@@ -25,6 +25,7 @@ export class SnapshotStore {
   #characterName: string | null = null;
   #config: string | null = null;
   #apiVersion: readonly [number, number] | null = null;
+  #probe: ProbeMessage | null = null;
 
   constructor(
     private readonly now: () => number,
@@ -51,6 +52,9 @@ export class SnapshotStore {
       case "config":
         this.#config = msg.data;
         break;
+      case "probe":
+        this.#probe = msg;
+        break;
     }
   }
 
@@ -74,6 +78,16 @@ export class SnapshotStore {
   /** The logged-in character, or null in the lobby. Tracks the snapshot. */
   get characterName(): string | null {
     return this.#characterName;
+  }
+
+  /**
+   * The most recent draw-stream report, or null if none has been asked for.
+   *
+   * Retained rather than drained: it is a reading someone requested and is
+   * reading, not an event to be consumed once.
+   */
+  get probe(): ProbeMessage | null {
+    return this.#probe;
   }
 
   /** Bolt's plugin API version, once the handshake has arrived. */

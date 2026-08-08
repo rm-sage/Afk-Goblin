@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SnapshotStore, STALE_AFTER_MS } from "~/bolt-io/snapshot";
+import { DiagnosticsSchema } from "~/bolt-io/protocol";
 import type { ChatMessage, StateMessage, XpMessage } from "~/bolt-io/protocol";
 
 function stateAt(tick: number): StateMessage {
@@ -20,6 +21,7 @@ function stateAt(tick: number): StateMessage {
     chatScrolledUp: false,
     chatBoxes: 1,
     buffIcons: 0,
+    diag: DiagnosticsSchema.parse({}),
     dialogOpen: null,
     target: null,
     newDrops: null,

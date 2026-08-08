@@ -11,9 +11,25 @@ local bridge = require("lua.bridge")
 local chat = require("lua.detect.chat")
 local stats = require("lua.detect.stats")
 local buffs = require("lua.detect.buffs")
+local probe = require("lua.detect.probe")
 
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
+
+-- HOW LONG OF EACH TICK CHAT AND THE ACTION BAR ARE SCANNED FOR.
+--
+-- Their scans read the atlas entry of every image in every batch -- about 3,300
+-- per frame per detector in a live client -- so running them on every frame of
+-- every tick is what took five to ten FPS. Once per tick is all that is needed:
+-- an interface element that is on screen is drawn on EVERY frame, so any window
+-- covering a whole frame sees all of it.
+--
+-- Bounded by TIME rather than by frames, because Bolt gives no reliable frame
+-- boundary -- see the note on onswapbuffers below, which is the assumption that
+-- made chat blind for two sessions. A tenth of a second covers a complete frame
+-- even on a client running at fifteen FPS, and several on a fast one, so it errs
+-- towards seeing too much rather than too little.
+local SCAN_BUDGET_US = 100000
 
 -- The app. app/probe.html is still shipped and is the bridge diagnostics page;
 -- point this at it temporarily when something needs debugging at the wire level.
@@ -74,12 +90,28 @@ bolt.onmousemotion(function () lastmove = bolt.time() end)
 bolt.onscroll(function () lastmove = bolt.time() end)
 
 bolt.onrender2d(function (event)
-  chat.onrender2d(event)
-  stats.onrender2d(event)
-  buffs.onrender2d(event)
+  -- One clock read per batch, rather than one atlas read per image: the whole
+  -- point is that the expensive scans below get declined most of the time.
+  local scanning = (bolt.time() - lasttick) < SCAN_BUDGET_US
+
+  chat.onrender2d(event, scanning)
+  stats.onrender2d(event, scanning)
+
+  -- Buff PAIRING is not budgeted: its work is already proportional to the icons
+  -- waiting rather than to everything on screen, and an icon's timer text can
+  -- arrive at any point in the tick. The budget is passed in only because the
+  -- outline sweep inside does walk every image, and that is exactly the cost the
+  -- budget exists to bound. See the note on M.onrender2d.
+  buffs.onrender2d(event, scanning)
+  probe.onrender2d(event)
 end)
 
-bolt.onrendericon(function (event) buffs.onrendericon(event) end)
+-- The probe wants the signature buffs derived, not its own copy of the
+-- derivation: two readings of the same icon that could disagree would make the
+-- report useless for the one thing it is for.
+bolt.onrendericon(function (event)
+  probe.onrendericon(event, buffs.onrendericon(event))
+end)
 
 --- Bolt's character strings are empty or NUL-led when not logged in.
 local function nonempty(value)
@@ -113,6 +145,10 @@ end)
 
 -- flashwindow already does nothing when the window is focused, so it needs no guard.
 link:on("flash", function () bolt.flashwindow() end)
+
+-- Inbound: sample one tick of the draw stream and report what was in it. Armed
+-- from the UI and never left on -- see lua/detect/probe.lua.
+link:on("probe", function () probe.arm() end)
 
 local major, minor = bolt.apiversion()
 link:send({ t = "hello", apiVersion = { major, minor } })
@@ -165,6 +201,34 @@ bolt.onswapbuffers(function ()
 
   local buffslist, debuffslist = buffs.read()
 
+  -- What detection actually saw, so an alert that never fires can be diagnosed
+  -- from the UI instead of from a guess. Every field here is a count, and the
+  -- interesting readings are the zeroes.
+  local chatdiag = chat.diagnostics()
+  local diag = {
+    chatBubbles = chatdiag.bubbles,
+    chatConfirmed = chatdiag.confirmed,
+    chatScrolledBoxes = chatdiag.scrolledBoxes,
+    chatBubblesEver = chatdiag.bubblesEver,
+    chatConfirmedEver = chatdiag.confirmedEver,
+    chatLines = chatdiag.lines,
+    -- render2d events seen during the tick. Zero means detection is not being
+    -- fed at all, which is a different problem from finding nothing in the feed
+    -- -- and telling those apart is what took two sessions last time.
+    render2dEvents = chatdiag.events,
+    render2dScanned = chatdiag.scanned,
+    buffIconDraws = buffs.iconcount(),
+    buffIconsRead = buffs.parsedcount(),
+    buffPairAttempts = buffs.attemptcount(),
+    buffUnpaired = buffs.unpairedicons(),
+    -- Every buff on the bar is outlined, but only buffs drawn from a rendered 3D
+    -- model raise an icon event. More outlines than icons is the count of buffs
+    -- detection cannot see at all.
+    buffOutlines = buffs.outlinecount(),
+    barsRead = stats.seencount(),
+    chatAnchors = chatdiag.anchors,
+  }
+
   link:send({
     t = "state",
     tick = tick,
@@ -183,8 +247,13 @@ bolt.onswapbuffers(function ()
     chatScrolledUp = chat.scrolledup(),
     chatBoxes = chat.boxcount(),
     stats = stats.read(),
-    buffIcons = buffs.iconcount(),
     buffs = buffslist,
     debuffs = debuffslist,
+    diag = diag,
   })
+
+  -- Sent separately from the snapshot: it is large, occasional, and answers a
+  -- different question. Nothing depends on it arriving.
+  local report = probe.tick()
+  if report ~= nil then link:send(report) end
 end)

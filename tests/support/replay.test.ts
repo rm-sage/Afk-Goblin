@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { replay, type Session } from "./replay";
 import { AlerterBaseSchema } from "~/store/schema";
+import { DiagnosticsSchema } from "~/bolt-io/protocol";
 import { TICK_MS } from "~/engine/loop";
 
 function alerter(over: Record<string, unknown> & { type: string }) {
@@ -26,6 +27,7 @@ function stateAt(tick: number, over: Record<string, unknown> = {}) {
     chatScrolledUp: false,
     chatBoxes: 1,
     buffIcons: 0,
+    diag: DiagnosticsSchema.parse({}),
     dialogOpen: null,
     target: null,
     newDrops: null,

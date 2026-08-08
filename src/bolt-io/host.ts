@@ -15,7 +15,9 @@ const BOLT_API = "https://bolt-api";
 export type HostMessage =
   | { t: "highlight"; models: string[] }
   | { t: "flash" }
-  | { t: "save"; data: string };
+  | { t: "save"; data: string }
+  /** Sample one tick of the draw stream and report it back. See probe.lua. */
+  | { t: "probe" };
 
 export function sendToPlugin(message: HostMessage): void {
   // Fire and forget: the plugin acts on it, and there is nothing to await.

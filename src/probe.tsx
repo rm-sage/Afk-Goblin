@@ -131,7 +131,12 @@ function Probe() {
         {recorder.length} messages captured{" "}
         <button
           onClick={() => {
-            void navigator.clipboard.writeText(JSON.stringify(recorder.toSession()));
+            // Guarded because this page is served from plugin://, which CEF does
+            // not treat as a secure context -- so `navigator.clipboard` is not
+            // permission-denied here, it is undefined, and reading .writeText
+            // off it throws. See src/ui/probe-report.ts for the reasoning and
+            // for the path that actually works.
+            void navigator.clipboard?.writeText(JSON.stringify(recorder.toSession()));
           }}
         >
           Copy session JSON
