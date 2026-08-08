@@ -201,6 +201,18 @@ function tick(): void {
   view.drainInto();
   loop.step();
   dispatchAlerts();
+
+  // REPAINT EVERY TICK, because everything the UI reads from the plugin arrives
+  // as PROPS and props only change here.
+  //
+  // App re-renders itself on a timer, which is enough for the alert rows — those
+  // read a live object the loop mutates in place. It does nothing for the
+  // connection pill, the chat status, the live buff list or the detection panel,
+  // all of which are snapshot values captured when paint() was last called. They
+  // were therefore frozen at whatever was true when the app started, which made
+  // the detection panel report a stale reading with total confidence — the exact
+  // failure it exists to expose.
+  paint();
 }
 
 const root = document.getElementById("root");
