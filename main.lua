@@ -60,6 +60,11 @@ end
 local lastclick = bolt.time()
 local lastmove = bolt.time()
 
+-- Declared up here because the render handler reads `lasttick` for its scan
+-- budget, and a local declared after a function is not an upvalue of it.
+local tick = 0
+local lasttick = bolt.time()
+
 bolt.onmousebutton(function ()
   local now = bolt.time()
   lastclick = now
@@ -119,22 +124,29 @@ if stored ~= nil then
   link:send({ t = "config", data = stored })
 end
 
-local tick = 0
-local lasttick = bolt.time()
 
+-- ONSWAPBUFFERS IS NOT A FRAME BOUNDARY, and detection must not treat it as
+-- one. Bolt raises it on every buffer swap the client makes, and the client is
+-- free to make several per frame. Detection used to open a scan window here and
+-- close it at the next swap; with more than one swap per frame that window
+-- opened and closed before a single render2d event arrived, and chat and the
+-- action bar were never scanned at all. All three detectors now scan every
+-- frame and publish on the tick, and the only thing this callback decides is
+-- when a tick has elapsed.
 bolt.onswapbuffers(function ()
-  -- Close any scan window opened last tick. Doing it here rather than when the
-  -- first result arrives is what lets a window span a whole frame, and a whole
-  -- frame is what it takes to see every chat box.
-  chat.endscan()
-
   local now = bolt.time()
   if now >= lasttick and now - lasttick < TICK_US then return end
   lasttick = now
   tick = tick + 1
 
-  -- Ask for one chat scan per tick. render2d fires many times a frame, and
-  -- scanning every one of them is pure waste.
+  -- Close the tick that just ended and open the next.
+  --
+  -- ORDER MATTERS, AND IT BIT ONCE ALREADY. Each of these publishes what its
+  -- tick gathered and then starts clean, so the reads below must come after
+  -- them. buffs.request used to clear its lists WITHOUT publishing, so the read
+  -- that followed it in this same callback always returned an empty list and the
+  -- buff picker could never show anything — as did the counters meant to explain
+  -- why. tests/lua/buffs.test.ts holds that case down.
   chat.request()
   stats.request()
   buffs.request()
