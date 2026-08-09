@@ -1,216 +1,184 @@
--- XP drops, read as text.
+-- XP, read off the XP counter interface.
 --
--- WHAT REGISTRY.TS SAID THE BLOCKER WAS, AND WHY IT WAS NOT ONE. It recorded
--- xpcounter and bigxp as awaiting "identifying the XP-drop '+' glyph against a
--- live client". No live reading was needed: the vendored chat module already
--- carries '+', every digit, ',', '.', 'k' and 'm' in its font tables across all
--- seven sizes, because since the 2026-01-19 interface update most game text uses
--- the chat font. So an XP drop is readable with the same lookup chat uses.
+-- WHY NOT THE FLOATING "+N" DROPS, which this file used to read. A drop is
+-- redrawn while it floats and fades, so it is counted again on every tick until it
+-- vanishes -- measured in game at about five seconds of tail after XP really
+-- stops. An inactivity alert therefore fired five seconds late, which the user
+-- reported as killing the feature for anything time-sensitive. Deduping a drop
+-- across ticks is not available as a fix: two genuine identical drops ("+54"
+-- twice while training steadily) would collapse into one, the running total would
+-- stop moving while XP was still being gained, and the alert would fire DURING
+-- activity. A missed alert is the worst outcome here, so that trade is not open.
 --
--- TOTAL ONLY, DELIBERATELY, AND THE UI SAYS SO.
+-- The counter shows cumulative totals. A total changes the instant XP is gained
+-- and then holds still, so there is no tail and nothing to dedupe. It is also what
+-- AfkWarden read, via Alt1's XP reader.
 --
--- A drop is drawn as a skill ICON beside a number, and the number alone cannot
--- say which skill it belongs to. Attributing it would mean hashing the icon
--- sprite and having the user bind each hash to one of AfkWarden's three-letter
--- codes -- a picker, a training step, and a live reading to confirm where the
--- icons sit. Decided against for now, so everything here accumulates under
--- "tot". Three of the four xpcounter alerts in the reference config name a
--- specific skill and will report themselves unreadable rather than quietly
--- watching everything, which is the failure mode this project keeps removing.
+-- A LEVEL, NOT EVENTS, and that closes an honesty hole the lag fix alone did not.
+-- While XP arrived as drops, src/bolt-io/game-state.ts accumulated them into a
+-- total that only ever grew -- so once one drop had been seen, `readXp` could
+-- never return null again, and a reader that had gone BLIND (interface closed,
+-- detection starved, font changed) was indistinguishable from "XP stopped" and
+-- made xpcounter FIRE. A level can be absent at any moment, so blindness now
+-- reads as no data instead of as an alert.
 --
--- ONLY THE DIFFERENCE MATTERS. src/bolt-io/game-state.ts folds these into a
--- running total whose absolute value is meaningless -- it starts at zero every
--- session -- and every alerter diffs successive readings. That is what makes
--- reading drops a valid substitute for Alt1's ability to read a skill's true
--- total off the XP counter.
+-- WHAT IS ANCHORED AND WHAT IS ORDINAL.
 --
--- A DROP LINGERS FOR SEVERAL TICKS, and that is a known, bounded inaccuracy.
--- The game draws a drop for a couple of seconds while it floats and fades, so it
--- is deduped by TEXT within a tick but counted again on the next one. The total
--- therefore over-counts. It cannot under-count, which is the direction that
--- matters: an inactivity alert fires when XP STOPS, so a stale reading delays it
--- by roughly the drop's on-screen lifetime rather than suppressing it. Two
--- genuine identical drops in one tick collapse to one, which is invisible to
--- every alerter here because all of them only ask whether the total moved.
+-- Anchored on the literal "XP" column header, and on nothing else. The interface
+-- draws two stacked tables -- "XP | XP/h | ETA" above "Gain | Drops | GP/h" -- and
+-- the lower one is full of large comma-separated numbers that would read as XP if
+-- the anchor were merely "a number". Requiring "XP" separates them. Requiring
+-- "XP/h" and "ETA" as well was considered and rejected: those columns are
+-- user-configurable, so anyone with one switched off would go permanently blind,
+-- and blindness resolves to silence, which is worse than the failure it replaced.
+--
+-- Everything below the header is ORDINAL rather than positional: the XP column is
+-- the leftmost, confirmed by the user, so a row's XP cell is simply the FIRST
+-- numeric run on that row. That needs no pixel constant for column extents or
+-- alignment, which is the part of an earlier design that was guessing.
+--
+-- STILL UNVERIFIED AGAINST A LIVE CLIENT, and built to say so. The diagnostics
+-- report whether the header was found and the raw text of every cell read, and
+-- lua/detect/probe.lua now dumps the text actually drawn. If this reads nothing,
+-- one probe sample says why rather than prompting another guess.
 
-local chatmodule = require("modules.chat.chat")
+local text = require("lua.detect.text")
 
 local M = {}
 
---- Characters an XP drop may contain after its leading '+'.
----
---- STRICT ON PURPOSE. This is the second guard against reading ordinary text as
---- a drop: the first is that main.lua does not offer this batches that held a
---- chat box. A run containing anything else -- a letter, a colon -- is not a
---- drop, and rejecting it costs nothing because a real drop never does.
-local ALLOWED = {
-  ["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true, ["4"] = true,
-  ["5"] = true, ["6"] = true, ["7"] = true, ["8"] = true, ["9"] = true,
-  [","] = true, ["."] = true, ["k"] = true, ["m"] = true,
-}
+--- The column header that identifies the XP table.
+local HEADER = "XP"
 
---- Multipliers a drop's suffix can carry.
-local MULTIPLIER = { k = 1000, m = 1000000 }
+--- Rows read at once. A counter holds a handful; the cap bounds a pathological
+--- batch rather than expressing a belief about the interface.
+local MAX_ROWS = 24
 
---- Largest gap BETWEEN two glyph boxes still counted as one run, in pixels.
----
---- Measured edge to edge -- the next glyph's left against the previous glyph's
---- right -- rather than between their left edges. An advance-based figure has to
---- be loose enough for the largest font and is then far too loose for the
---- smallest; a real gap barely changes with scale.
-local MAX_GLYPH_GAP = 6
-
---- How far two glyphs' BOTTOM edges may differ and still count as one line.
----
---- GROUPING BY THE BOTTOM IS THE WHOLE TRICK, and grouping by the top was a bug
---- that shipped. `chatchars` is keyed by a glyph's own bounding-box height, not by
---- font size: at one size digits and capitals are 8 tall, '+' is 6, ',' is 4 and
---- '.' is 3. Text sits on a shared BASELINE, so those quads all end at the same y
---- and START at wildly different ones -- a comma's top is ~4px below a digit's.
----
---- Grouping on the top edge therefore broke the run at every comma, so "+1,234"
---- read as 1, and broke it straight after the '+' at any font size where '+' and
---- the digits do not happen to share a height. Bottoms differ by a pixel or two
---- for glyphs that descend slightly, hence a small tolerance rather than none.
-local BASELINE_TOLERANCE = 3
-
---- Runs published on the tick, and the tick in progress.
-local drops, wipdrops = {}, {}
-local wipseen = {}
-
---- Diagnostics: text runs examined, and how many parsed as a drop.
-local examined, parsed = 0, 0
-local wipexamined, wipparsed = 0, 0
+--- Published on the tick, and the tick in progress.
+local totals, wiptotals = nil, nil
+local cells, wipcells = {}, {}
+local found, wipfound = false, false
+local coarse, wipcoarse = false, false
 
 --- Publish what the tick gathered, then start clean.
 ---
---- Same shape as the other detectors, and for the same reason: main.lua calls
+--- Same shape as the other detectors and for the same reason: main.lua calls
 --- request and then reads in one callback, so anything reset in place without
 --- publishing first reads back empty.
 function M.request()
-  drops = wipdrops
-  examined, parsed = wipexamined, wipparsed
-  wipdrops = {}
-  wipseen = {}
-  wipexamined, wipparsed = 0, 0
+  totals = wiptotals
+  cells = wipcells
+  found = wipfound
+  coarse = wipcoarse
+
+  wiptotals = nil
+  wipcells = {}
+  wipfound = false
+  wipcoarse = false
 end
 
---- Amounts read on the last tick, one entry per distinct drop text.
+--- The XP totals read on the last tick, or nil when the counter was not readable.
+---
+--- Nil is the honest answer and the important one: it becomes `functional: false`
+--- and a "no data" badge, rather than a total that stopped moving and reads as
+--- "you stopped gaining XP".
 function M.read()
-  return drops
+  return totals
 end
 
---- Text runs examined and how many parsed, for the detection panel.
+--- What the last tick saw, for the detection panel.
 function M.diagnostics()
-  return { examined = examined, parsed = parsed }
+  return { found = found, cells = cells, coarse = coarse }
 end
 
---- Turn "+1,234" or "+1.5k" into a number, or nil if it is not a drop.
-local function parseamount(text)
-  local body = string.match(text, "^%+(.+)$")
-  if body == nil then return nil end
-
-  local multiplier = 1
-  local suffix = string.sub(body, -1)
-  if MULTIPLIER[suffix] ~= nil then
-    multiplier = MULTIPLIER[suffix]
-    body = string.sub(body, 1, -2)
-  end
-
-  -- Thousands separators are presentation; the decimal point is not.
-  body = string.gsub(body, ",", "")
-  if body == "" then return nil end
-  if string.match(body, "^%d+%.?%d*$") == nil then return nil end
-
-  local n = tonumber(body)
-  if n == nil then return nil end
-  return math.floor((n * multiplier) + 0.5)
-end
-
---- Close a run and keep it if it reads as a drop.
-local function finish(text)
-  if text == nil or #text < 2 then return end
-  wipexamined = wipexamined + 1
-
-  local amount = parseamount(text)
-  if amount == nil or amount <= 0 then return end
-
-  -- Deduped by text: the same drop is redrawn on every frame of the tick, and
-  -- counting each sighting would multiply it by the frame rate.
-  if wipseen[text] then return end
-  wipseen[text] = true
-  wipparsed = wipparsed + 1
-  wipdrops[#wipdrops + 1] = amount
-end
-
---- Feed a render2d batch.
+--- Read the counter out of one batch.
 --- @param scanning boolean|nil false once this frame's scan budget is spent.
 --- @param ischatbatch boolean|nil true when chat detection claimed this batch.
----
---- The font-size table is the cheap filter that makes this affordable: a glyph
---- lookup reads pixels, and `chatchars` is keyed by atlas height, so anything
---- that is not drawn at a known font size is rejected by one table index rather
---- than by a texture read.
 function M.onrender2d(event, scanning, ischatbatch)
   if scanning == false or ischatbatch == true then return end
 
-  local vertexcount = event:vertexcount()
-  local vpi = event:verticesperimage()
+  -- Collected first, then reasoned about. Runs arrive in draw order, which is not
+  -- reading order, so rows cannot be assembled on the fly.
+  local runs = {}
+  text.scan(event, function (run, box)
+    runs[#runs + 1] = { text = run, left = box.left, bottom = box.bottom }
+  end)
+  if #runs == 0 then return end
 
-  local run = nil
-  local lastleft, lastright, lastbottom, lasttop, lastax, lastay
+  -- The header. Its baseline is where the table starts.
+  local headerbottom = nil
+  for _, r in ipairs(runs) do
+    if r.text == HEADER then
+      if headerbottom == nil or r.bottom < headerbottom then headerbottom = r.bottom end
+    end
+  end
+  if headerbottom == nil then return end
 
-  for i = 1, vertexcount, vpi do
-    local ax, ay, aw, ah = event:vertexatlasdetails(i)
+  wipfound = true
 
-    if ah ~= nil and chatmodule.chatchars[ah] ~= nil then
-      -- BOTH corners. Offset 2 within an image is its top-left and offset 0 the
-      -- far one, but min/max rather than assuming which is which, so a flipped or
-      -- stretched text quad at a fractional interface scale still measures right.
-      local ax1, ay1 = event:vertexxy(i)
-      local ax2, ay2 = event:vertexxy(i + 2)
-
-      if ax1 ~= nil and ay1 ~= nil and ax2 ~= nil and ay2 ~= nil then
-        local left = math.min(ax1, ax2)
-        local right = math.max(ax1, ax2)
-        local top = math.min(ay1, ay2)
-        local bottom = math.max(ay1, ay2)
-
-        -- The colour copy of a glyph sits within a pixel of its shadow with the
-        -- same atlas entry, so the pair collapses onto whichever came first.
-        local duplicate = lastleft ~= nil
-          and math.abs(left - lastleft) < 2 and math.abs(top - lasttop) < 2
-          and ax == lastax and ay == lastay
-
-        if not duplicate then
-          local ok, char = pcall(chatmodule.lookupchatcharacter, chatmodule, event, ax, ay, aw, ah)
-          char = ok and char or nil
-
-          if char ~= nil then
-            local continues = run ~= nil
-              and lastbottom ~= nil
-              and math.abs(bottom - lastbottom) <= BASELINE_TOLERANCE
-              and left >= lastleft
-              and (left - lastright) <= MAX_GLYPH_GAP
-
-            if continues and ALLOWED[tostring(char)] then
-              run = run .. tostring(char)
-            else
-              finish(run)
-              -- Only a '+' can open a run, which is what keeps this from walking
-              -- every number on screen.
-              run = (tostring(char) == "+") and "+" or nil
-            end
-
-            lastleft, lastright, lastbottom, lasttop = left, right, bottom, top
-            lastax, lastay = ax, ay
-          end
-        end
+  -- Rows below the header, keyed by baseline. A row is one baseline: every cell
+  -- on it shares a bottom edge whatever heights its glyphs happen to be.
+  local rows = {}
+  for _, r in ipairs(runs) do
+    if r.bottom > headerbottom + text.BASELINE_TOLERANCE then
+      local key = nil
+      for _, row in ipairs(rows) do
+        if math.abs(row.bottom - r.bottom) <= text.BASELINE_TOLERANCE then key = row break end
       end
+      if key == nil and #rows < MAX_ROWS then
+        key = { bottom = r.bottom, runs = {} }
+        rows[#rows + 1] = key
+      end
+      if key ~= nil then key.runs[#key.runs + 1] = r end
     end
   end
 
-  finish(run)
+  table.sort(rows, function (a, b) return a.bottom < b.bottom end)
+
+  local sum = 0
+  local read = 0
+
+  for _, row in ipairs(rows) do
+    -- Leftmost first, so "the first numeric run" means the leftmost one.
+    table.sort(row.runs, function (a, b) return a.left < b.left end)
+
+    local value, wascoarse = nil, false
+    local cell = nil
+    for _, r in ipairs(row.runs) do
+      local n, c = text.number(r.text)
+      if n ~= nil then
+        value, wascoarse, cell = n, c, r.text
+        break
+      end
+    end
+
+    if value == nil then
+      -- A row with no number at all is the next table's header ("Gain | Drops |
+      -- GP/h"), so the XP table has ended. Stopping here rather than filtering by
+      -- x is what keeps the lower table's large numbers out without needing to
+      -- know where either table sits.
+      break
+    end
+
+    read = read + 1
+    sum = sum + value
+    if wascoarse then wipcoarse = true end
+    if #wipcells < MAX_ROWS then wipcells[#wipcells + 1] = cell end
+  end
+
+  if read == 0 then return end
+
+  -- ABBREVIATED CELLS ARE NOT USED. "37.1M" is a real reading but only moves on a
+  -- gain of tens of thousands, so an inactivity alert built on it would fire while
+  -- training continues. Reported with a reason -- widen the counter -- rather than
+  -- acted on.
+  if wipcoarse then return end
+
+  -- Summed across rows and published under "tot" only. A row is identified by its
+  -- skill ICON, and reading that means hashing the sprite and having the user bind
+  -- each hash to one of AfkWarden's three-letter codes -- a picker and a training
+  -- step, deliberately not built yet. The sum answers the only question every
+  -- alerter here asks, which is whether the total moved.
+  wiptotals = { tot = sum }
 end
 
 return M

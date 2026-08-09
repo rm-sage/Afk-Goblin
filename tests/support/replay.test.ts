@@ -30,6 +30,7 @@ function stateAt(tick: number, over: Record<string, unknown> = {}) {
     dialogOpen: null,
     target: null,
     newDrops: null,
+    xpTotals: null,
     ...over,
   };
 }

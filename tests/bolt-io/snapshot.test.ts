@@ -24,6 +24,7 @@ function stateAt(tick: number): StateMessage {
     dialogOpen: null,
     target: null,
     newDrops: null,
+    xpTotals: null,
     characterName: null,
   };
 }
@@ -203,7 +204,7 @@ describe("SnapshotStore", () => {
     expect(store.ageMs).toBe(400);
 
     // A probe report is a message, but it is not a snapshot.
-    store.accept({ t: "probe", shapes: [], icons: [], bars: [], truncated: false });
+    store.accept({ t: "probe", shapes: [], icons: [], bars: [], texts: [], truncated: false });
 
     expect(store.ageMs).toBe(400);
     expect(store.connected).toBe(true);

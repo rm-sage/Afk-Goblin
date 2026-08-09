@@ -5,31 +5,36 @@ import type { SnapshotStore } from "~/bolt-io/snapshot";
 /**
  * Turns the pushed snapshot into the plain-data view alerters consume.
  *
- * The only real work here is XP. Alt1 could read a skill's CURRENT total off
- * the XP counter, and `xpcounter` alerts are written to diff successive
- * readings. Bolt reports XP DROPS instead — events, not a level — so drops are
- * accumulated into a running per-skill total. The absolute value is meaningless
- * (it starts at zero each session), but the differences are exactly right,
- * which is all the alerters ever used.
+ * XP USED TO BE ACCUMULATED HERE AND IS NOT ANY MORE. Bolt has no XP API, so the
+ * first implementation read the floating "+N" drops and folded them into a
+ * running total. Two problems, both fatal in practice:
+ *
+ *  - A drop lingers on screen for about five seconds while it fades, so the total
+ *    kept climbing after XP had really stopped and an inactivity alert fired five
+ *    seconds late. Reported in game as killing the feature.
+ *  - The tally only ever GREW, so once one drop had been seen `readXp` could never
+ *    return null again. A reader that had gone blind was indistinguishable from
+ *    "XP stopped" — so a detection failure made the alert FIRE rather than report
+ *    no data, which is the exact dishonesty this codebase is built to remove.
+ *
+ * `lua/detect/xp.lua` now reads the XP counter's cumulative totals instead. Those
+ * are a LEVEL: they change the instant XP is gained, hold still afterwards, and
+ * are absent when the counter cannot be read. Nothing needs accumulating, and
+ * `drainInto` exists only so callers keep a stable shape.
  */
 export class GameStateView {
-  #xp: Record<string, number> = {};
-
   constructor(private readonly snapshot: SnapshotStore) {}
 
   /**
-   * Fold any XP drops seen since the last call into the running totals.
-   * Call once per tick, before reading `state`.
+   * Kept as a no-op so the per-tick call site does not have to know that XP
+   * stopped being an event. Removing it would be a churn of every caller and
+   * every replay harness for no behavioural gain.
    */
-  drainInto(): void {
-    for (const drop of this.snapshot.drainXp()) {
-      this.#xp[drop.skill] = (this.#xp[drop.skill] ?? 0) + drop.amount;
-    }
-  }
+  drainInto(): void {}
 
   get state(): GameState {
     const s = this.snapshot.state;
-    if (s === null) return { ...NO_STATE, xp: this.#xp };
+    if (s === null) return NO_STATE;
 
     return {
       stats: s.stats,
@@ -38,7 +43,9 @@ export class GameStateView {
       player: s.player,
       models: s.models,
       craftProgress: s.craftProgress,
-      xp: this.#xp,
+      // An empty record when the counter was unreadable, which `readXp` turns
+      // into null and the alerter into "no data".
+      xp: s.xpTotals ?? {},
       dialogOpen: s.dialogOpen,
       target: s.target,
       newDrops: s.newDrops,

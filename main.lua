@@ -208,14 +208,6 @@ bolt.onswapbuffers(function ()
     link:send({ t = "chat", lines = out })
   end
 
-  -- XP drops go out as their own events rather than on the snapshot, because
-  -- they ARE events: the browser accumulates them into a running total, and a
-  -- level would have to be a level. Sent under "tot" only -- a drop's number
-  -- cannot say which skill it belongs to; see lua/detect/xp.lua.
-  for _, amount in ipairs(xp.read()) do
-    link:send({ t = "xp", skill = "tot", amount = amount })
-  end
-
   local buffslist, debuffslist = buffs.read()
 
   -- What detection actually saw, so an alert that never fires can be diagnosed
@@ -249,11 +241,12 @@ bolt.onswapbuffers(function ()
     buffIdentities = buffs.identities(),
     barsRead = stats.seencount(),
     chatAnchors = chatdiag.anchors,
-    -- XP drops are read as text, so the interesting reading is the RATIO: runs
-    -- examined with none parsed means the font lookup is working and nothing on
-    -- screen is a drop, while zero examined means no text is being scanned at all.
-    xpRunsExamined = xpdiag.examined,
-    xpDropsRead = xpdiag.parsed,
+    -- Whether the XP counter's header was found at all, and the raw text of each
+    -- cell read from it. The header is the one thing that can fail silently, and
+    -- the cell text is what tells an abbreviated reading from a full one.
+    xpCounterFound = xpdiag.found,
+    xpCells = xpdiag.cells,
+    xpCoarse = xpdiag.coarse,
   }
 
   link:send({
@@ -276,6 +269,10 @@ bolt.onswapbuffers(function ()
     stats = stats.read(),
     buffs = buffslist,
     debuffs = debuffslist,
+    -- A LEVEL, absent when the counter is not readable. Nil deletes the key, so it
+    -- reaches the schema missing and decodes as null -- which is what lets a blind
+    -- reader report "no data" instead of "your XP stopped".
+    xpTotals = xp.read(),
     diag = diag,
   })
 

@@ -16,7 +16,7 @@ function reading(over: Partial<Reportable> = {}): Reportable {
       { id: null, x: 1576, y: 990, w: 27, h: 27 },
     ],
     shapes: [{ key: "image 106x4", count: 52, x: 1200, y: 1400 }],
-    truncated: false,
+    texts: [], truncated: false,
     ...over,
   };
 }
@@ -44,12 +44,12 @@ describe("probeReport", () => {
   });
 
   it("says so when the reading was capped, and stays silent when it was not", () => {
-    expect(probeReport(reading({ truncated: true }))).toContain("capped");
+    expect(probeReport(reading({ texts: [], truncated: true }))).toContain("capped");
     expect(probeReport(reading())).not.toContain("capped");
   });
 
   it("produces no stray blank lines when a section is empty", () => {
-    const text = probeReport({ bars: [], icons: [], shapes: [], truncated: false });
+    const text = probeReport({ bars: [], icons: [], shapes: [], texts: [], truncated: false });
     expect(text).toBe("");
   });
 });

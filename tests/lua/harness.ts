@@ -45,6 +45,7 @@ const SOURCES = [
   "lua/detect/buffs.lua",
   "lua/detect/stats.lua",
   "lua/detect/probe.lua",
+  "lua/detect/text.lua",
   "lua/detect/xp.lua",
   "tests/lua/driver.lua",
 ];

@@ -16,6 +16,8 @@
 -- frame, which is far too much to run continuously. The UI arms it, one tick is
 -- sampled, the report goes back, and it disarms itself.
 
+local textscan = require("lua.detect.text")
+
 local M = {}
 
 --- Distinct shape keys kept. Enough to cover an interface, small enough that the
@@ -46,6 +48,10 @@ local MAX_ICONS = 96
 --- to be drawn early. Sized to hold a whole interface instead.
 local MAX_BARS = 48
 
+--- Text runs reported. An interface holds well under this; the cap is there so a
+--- screen full of chat cannot turn the report into a flood.
+local MAX_TEXT = 64
+
 local armed = false
 local ticks = 0
 
@@ -69,6 +75,17 @@ local barseen = {}
 --- than on the same twenty-four icons repeated until it runs out.
 local iconseen = {}
 
+--- Text runs found, with where they were. See `M.text`.
+---
+--- SHAPES AND COLOURS WERE NOT ENOUGH. The reason this section exists is the XP
+--- counter: reading it needs to know the header strings, the column order, the row
+--- pitch, the number format and whether the panel is one batch — and every one of
+--- those was about to be guessed at, which is the failure this whole file was
+--- built to prevent. A dump of the text actually drawn answers all of them at
+--- once, and answers them for the next interface too.
+local texts = {}
+local textseen = {}
+
 --- Start sampling. The next full tick is what gets reported.
 function M.arm()
   armed = true
@@ -79,6 +96,8 @@ function M.arm()
   iconseen = {}
   bars = {}
   barseen = {}
+  texts = {}
+  textseen = {}
 end
 
 function M.armed()
@@ -128,6 +147,21 @@ end
 --- action bar reads as invisible.
 function M.onrender2d(event)
   if not armed then return end
+
+  -- Every text run drawn, with where it was. Deduped by text and position so a
+  -- tick of identical frames reports one copy.
+  textscan.scan(event, function (run, box)
+    local key = string.format("%s@%d,%d", run, box.left, box.bottom)
+    if textseen[key] or #texts >= MAX_TEXT then return end
+    textseen[key] = true
+    texts[#texts + 1] = {
+      text = run,
+      x = box.left,
+      y = box.bottom,
+      w = box.right - box.left,
+      h = box.bottom - box.top,
+    }
+  end)
 
   local vertexcount = event:vertexcount()
   local verticesperimage = event:verticesperimage()
@@ -197,9 +231,11 @@ function M.tick()
     shapes = list,
     icons = icons,
     bars = bars,
+    texts = texts,
     -- `bars` counts too. It was left out, so a bar list that had silently
     -- dropped the action bar reported itself as a complete reading.
-    truncated = shapecount >= MAX_SHAPES or #icons >= MAX_ICONS or #bars >= MAX_BARS,
+    truncated = shapecount >= MAX_SHAPES or #icons >= MAX_ICONS or #bars >= MAX_BARS
+      or #texts >= MAX_TEXT,
   }
 end
 

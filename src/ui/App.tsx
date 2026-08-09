@@ -379,6 +379,35 @@ function DetectionPanel({
         answer one question: whether the plugin is being told about icons at all.
       </p>
 
+      <h3 class="diag__head">XP</h3>
+      <p class={`diag__verdict diag__verdict--${diag.xpCounterFound && !diag.xpCoarse ? "ok" : "bad"}`}>
+        {!diag.xpCounterFound
+          ? "The XP counter is not on screen, so no XP can be read and XP alerts will show no data. " +
+            "Open it in game — XP is read from its totals, not from the floating +N drops, because a " +
+            "drop lingers for about five seconds after XP really stops."
+          : diag.xpCoarse
+            ? "The XP counter is showing an abbreviated total such as 37.1M, which only moves on a gain " +
+              "of tens of thousands — too coarse to tell activity from inactivity. Widen the counter so " +
+              "it shows the full number."
+            : `Reading ${diag.xpCells.length} row${diag.xpCells.length === 1 ? "" : "s"} from the XP counter.`}
+      </p>
+      <dl class="diag__grid">
+        <dt>Counter found</dt>
+        <dd>{diag.xpCounterFound ? "yes" : "no"}</dd>
+        {/*
+          The RAW cell text, because a misread number is otherwise invisible: a
+          total that is wrong but plausible looks exactly like a total that is
+          right, and every alerter only diffs it.
+        */}
+        <dt>XP column read</dt>
+        <dd>{diag.xpCells.length === 0 ? "—" : diag.xpCells.join(", ")}</dd>
+      </dl>
+      <p class="diag__note">
+        Only the total is available. A row is identified by its skill icon, and reading that is not
+        built yet — so an alert naming a specific skill shows no data rather than quietly watching
+        everything. While you are doing one activity, Total is the same thing.
+      </p>
+
       <h3 class="diag__head">Action bar</h3>
       <p class={`diag__verdict diag__verdict--${diag.barsRead > 0 ? "ok" : "bad"}`}>
         {diag.barsRead === 0

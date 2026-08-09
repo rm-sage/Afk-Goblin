@@ -218,8 +218,18 @@ export const DiagnosticsSchema = z.object({
    * lookup works and nothing on screen is an XP drop; zero examined means no text
    * is being scanned at all, which is a different problem with a different fix.
    */
-  xpRunsExamined: z.number().int().nonnegative().default(0),
-  xpDropsRead: z.number().int().nonnegative().default(0),
+  /** Whether the XP counter's "XP" column header was found on screen at all. */
+  xpCounterFound: z.boolean().default(false),
+  /** The raw text of each XP cell read, so an abbreviated reading is visible. */
+  xpCells: z.array(z.string()).default([]),
+  /**
+   * True when a cell was abbreviated, e.g. "37.1M".
+   *
+   * A real reading but a coarse one: it only moves on a gain of tens of
+   * thousands, so an inactivity alert built on it would fire while training
+   * continues. Reported with a reason instead of acted on.
+   */
+  xpCoarse: z.boolean().default(false),
   /**
    * Where each chat anchor candidate was, and what became of it.
    *
@@ -313,6 +323,21 @@ export const StateMessageSchema = z.object({
   dialogOpen: z.boolean().nullable().default(null),
   target: TargetSchema.nullable().default(null),
   newDrops: z.array(DropEventSchema).nullable().default(null),
+  /**
+   * Cumulative XP per skill code as read off the XP counter, or null when it
+   * could not be read.
+   *
+   * A LEVEL, not accumulated events, and the difference is load-bearing. While XP
+   * arrived as floating "+N" drops the browser accumulated them into a total that
+   * only ever grew — so once one drop had been seen a reader that went BLIND
+   * (counter closed, detection starved) was indistinguishable from "XP stopped"
+   * and made an inactivity alert fire. Null is representable at any moment, so
+   * blindness now reads as no data.
+   *
+   * Absolute values are still meaningless to alerters, which only diff successive
+   * readings — but they are the game's own totals rather than a session tally.
+   */
+  xpTotals: z.record(z.string(), z.number()).nullable().default(null),
   /** See `DiagnosticsSchema`. Defaulted whole, so it is always present. */
   diag: DiagnosticsSchema.default(() => DiagnosticsSchema.parse({})),
 });
@@ -407,6 +432,27 @@ export const ProbeMessageSchema = z.object({
         y: z.number(),
         w: z.number(),
         h: z.number(),
+      }),
+    )
+    .default([]),
+  /**
+   * Every run of text drawn, with where it was.
+   *
+   * Added because shapes and colours could not answer the questions reading an
+   * INTERFACE asks: what its column headers actually say, which order the columns
+   * are in, how far apart the rows sit, what number format the cells use. Those
+   * were about to be guessed at, and a guessed constant reads as an empty screen
+   * rather than as a wrong value — which is the whole reason this file exists.
+   */
+  texts: z
+    .array(
+      z.object({
+        text: z.string(),
+        x: z.number(),
+        /** Baseline y — the bottom edge, which is what groups a row. */
+        y: z.number(),
+        w: z.number().default(0),
+        h: z.number().default(0),
       }),
     )
     .default([]),
