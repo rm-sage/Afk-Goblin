@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buffDraw, loadPlugin, TICK_US, type LuaPlugin } from "./harness";
+import { buffDraw, loadPlugin, spriteBuff, TICK_US, type LuaPlugin } from "./harness";
 
 /**
  * Buff detection, driven through main.lua rather than through the module alone.
@@ -627,6 +627,175 @@ describe("buff diagnostics", () => {
    * alike, and an identity test would pass just as happily against an
    * implementation that never read a texture at all.
    */
+  /**
+   * THE BLIND SPOT. Bolt raises onrendericon only for images it recognised as a
+   * rendered item model, so abilities, prayers and familiars raise nothing at
+   * all — half a measured bar. Nothing downstream of an icon event can reach
+   * them, which is why there is a second path rather than a better first one.
+   */
+  it("reads a buff drawn as a sprite, with no icon event at all", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([spriteBuff({ at: { x: 1456, y: 990 }, texture: "sprite-one", number: 480 })]);
+    tick(plugin);
+
+    const state = plugin.latest();
+    expect(state?.buffs).toHaveLength(1);
+    expect(state?.buffs[0]?.timeLeft).toBe(480);
+    // Not one icon event took place, so nothing here came through the old path.
+    expect(state?.diag.buffIconDraws).toBe(0);
+
+    plugin.close();
+  });
+
+  it("reads a debuff drawn as a sprite", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      spriteBuff({ at: { x: 1456, y: 990 }, texture: "poison", number: 30, isbuff: false }),
+    ]);
+    tick(plugin);
+
+    expect(plugin.latest()?.debuffs).toHaveLength(1);
+    expect(plugin.latest()?.buffs).toHaveLength(0);
+
+    plugin.close();
+  });
+
+  /**
+   * The cost bound is a requirement, not an intention: an unfiltered
+   * attempt-per-image was measured at 2,366 parse attempts a frame and cost five
+   * to ten FPS. An inventory full of icons must produce none.
+   */
+  it("never offers the module an image with no outline at its position", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: Array.from({ length: 40 }, (_, i) => ({
+          ax: 200 + i * 30,
+          ay: 0,
+          aw: 27,
+          ah: 27,
+          x: 10 + i * 30,
+          y: 700,
+          texture: "inventory",
+        })),
+      },
+    ]);
+    tick(plugin);
+
+    const state = plugin.latest();
+    expect(state?.buffs).toHaveLength(0);
+    expect(state?.diag.buffPairAttempts).toBe(0);
+
+    plugin.close();
+  });
+
+  it("publishes a sprite buff whose timer will not parse, with no timeLeft", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([spriteBuff({ at: { x: 1456, y: 990 }, texture: "grace", number: null })]);
+    tick(plugin);
+
+    const state = plugin.latest();
+    expect(state?.buffs).toHaveLength(1);
+    expect(state?.buffs[0]?.timeLeft).toBeNull();
+
+    plugin.close();
+  });
+
+  /**
+   * Bolt removes a recognised item-model quad from the batch to raise its icon
+   * event, so in principle the two paths see disjoint sets. That is a claim
+   * about Bolt's internals rather than something this repo controls, and a buff
+   * arriving twice under two ids would show up as two picker entries that behave
+   * differently — so it is guarded.
+   */
+  it("publishes a buff once when both paths could see it", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      { kind: "icon", models: 1, verts: 366, x: 1456, y: 990, w: 27, h: 27 },
+      spriteBuff({ at: { x: 1456, y: 990 }, texture: "both-paths", number: 45 }),
+    ]);
+    tick(plugin);
+
+    expect(plugin.latest()?.buffs).toHaveLength(1);
+
+    plugin.close();
+  });
+
+  it("gives two different sprites two different ids", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      spriteBuff({ at: { x: 1456, y: 990 }, texture: "alpha-pattern", number: 60 }),
+      spriteBuff({ at: { x: 1516, y: 990 }, texture: "beta-pattern", number: 90 }),
+    ]);
+    tick(plugin);
+
+    const ids = (plugin.latest()?.buffs ?? []).map((b) => b.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(id).toMatch(/^s:[0-9a-f]{8}$/);
+
+    plugin.close();
+  });
+
+  /**
+   * An id that drifts between ticks would rebind every alert to nothing, and
+   * would do it silently — a buff that cannot be found reads exactly like one
+   * that is not active.
+   */
+  it("keeps a sprite's id the same across ticks", async () => {
+    const plugin = await loadPlugin();
+    const draw = () => spriteBuff({ at: { x: 1456, y: 990 }, texture: "stable-pattern", number: 60 });
+
+    tick(plugin);
+    plugin.frame([draw()]);
+    tick(plugin);
+    const first = plugin.latest()?.buffs[0]?.id;
+    expect(first).toMatch(/^s:[0-9a-f]{8}$/);
+
+    plugin.frame([draw()]);
+    tick(plugin);
+    expect(plugin.latest()?.buffs[0]?.id).toBe(first);
+
+    plugin.close();
+  });
+
+  /**
+   * The hash must actually read the texture. Two sprites at the same size and
+   * position differing only in pixels is the case that catches an id derived
+   * from the atlas rectangle alone.
+   */
+  it("distinguishes two sprites that differ only in their pixels", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([spriteBuff({ at: { x: 1456, y: 990 }, texture: "first-art", number: 60 })]);
+    tick(plugin);
+    const a = plugin.latest()?.buffs[0]?.id;
+
+    plugin.frame([
+      spriteBuff({ at: { x: 1456, y: 990 }, texture: "second-art", number: 60, atlasX: 900 }),
+    ]);
+    tick(plugin);
+    const b = plugin.latest()?.buffs[0]?.id;
+
+    expect(a).not.toBe(b);
+
+    plugin.close();
+  });
+
   it("reads different bytes at different points of one texture", async () => {
     const plugin = await loadPlugin();
 

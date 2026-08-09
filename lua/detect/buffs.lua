@@ -226,6 +226,91 @@ local unpaired, wipunpaired = {}, {}
 local wipunpairedseen = {}
 local MAX_UNPAIRED = 12
 
+--- Positions already claimed by a buff found this tick, so one buff cannot be
+--- published twice under two different ids.
+---
+--- Bolt splits a recognised item-model quad OUT of the batch to raise its icon
+--- event, so in principle the icon path and the sprite path see disjoint sets
+--- and this never fires. That is a claim about Bolt's internals rather than
+--- something this file controls, and a duplicated buff would surface as two
+--- picker entries that behave differently -- so it is guarded rather than
+--- assumed.
+local wipclaimed = {}
+
+--- Whether an outline box was drawn at exactly this position this tick, and if
+--- so whether it was a buff. nil when there was none.
+local function outlineat(x, y)
+  return wipoutlines[string.format("%d,%d", x, y)]
+end
+
+--- Sprite identity cache, keyed by atlas rectangle.
+---
+--- Atlas rects are packed at RUNTIME and are not stable between sessions, so a
+--- rect cannot be the id -- but within one session a rect is a fixed sprite, so
+--- it is a sound cache key. This is what keeps identity at one read per distinct
+--- buff rather than sixty-four texture reads per buff per frame.
+local spriteids = {}
+
+--- Points sampled across an icon, per axis.
+local SAMPLE_GRID = 8
+
+--- Cap on identities reported to the UI. A bar holds well under this.
+local MAX_IDENTITIES = 16
+
+--- FNV-1a, 32-bit.
+local FNV_OFFSET = 2166136261
+local FNV_PRIME = 16777619
+
+--- Stable identity for a sprite-drawn buff, or nil if its pixels cannot be read.
+---
+--- SAMPLED ON A RELATIVE GRID, NOT AT FIXED OFFSETS. Interface scale changes the
+--- size a sprite is stored at, and fixed offsets would then read different parts
+--- of the same picture. Relative points at least read CORRESPONDING parts.
+---
+--- QUANTISED TO THE TOP FOUR BITS per channel, so filtering noise -- a channel
+--- off by one or two -- cannot change the id.
+---
+--- THIS IS THE PART OF THE DESIGN TAKEN ON TRUST rather than measured: whether
+--- the atlas holds one variant per sprite or one per interface scale has not
+--- been read out of a live draw stream. M.identities publishes the rect behind
+--- each id so an id that moves when it should not is visible in the panel,
+--- instead of being inferred later from an alert that quietly stopped firing.
+local function spriteid(event, index)
+  local ax, ay, aw, ah = event:vertexatlasdetails(index)
+  if ax == nil or aw == nil or ah == nil or aw <= 0 or ah <= 0 then return nil end
+
+  local rect = string.format("%d,%d,%d,%d", ax, ay, aw, ah)
+  local cached = spriteids[rect]
+  if cached ~= nil then return cached.id end
+
+  local hash = FNV_OFFSET
+  local read = 0
+  for gy = 0, SAMPLE_GRID - 1 do
+    for gx = 0, SAMPLE_GRID - 1 do
+      local px = ax + math.floor((gx * aw) / SAMPLE_GRID)
+      local py = ay + math.floor((gy * ah) / SAMPLE_GRID)
+      local ok, texel = pcall(event.texturedata, event, px, py, 4)
+      if ok and texel ~= nil and #texel >= 3 then
+        read = read + 1
+        for c = 1, 3 do
+          local byte = string.byte(texel, c) // 16
+          hash = (hash ~ byte) & 0xFFFFFFFF
+          hash = (hash * FNV_PRIME) & 0xFFFFFFFF
+        end
+      end
+    end
+  end
+
+  -- Nothing readable means no identity. Hashing zero samples would give every
+  -- unreadable sprite the SAME id, which is worse than none: two unrelated buffs
+  -- would collide and an alert would follow whichever drew last.
+  if read == 0 then return nil end
+
+  local id = string.format("s:%08x", hash)
+  spriteids[rect] = { id = id, atlas = rect, w = aw, h = ah }
+  return id
+end
+
 --- Open a new tick: publish what the last one gathered, then start clean.
 ---
 --- Publishing here rather than in a separate reader is what makes the ordering
@@ -263,7 +348,24 @@ function M.request()
   wipunpaired = {}
   wipunpairedseen = {}
   wipoutlines = {}
+  wipclaimed = {}
   pending = {}
+end
+
+--- Every sprite id derived this session, with the atlas rect it came from.
+---
+--- THE HASH IS THE PART OF THIS DESIGN TAKEN ON TRUST. If the atlas holds a
+--- separate variant per interface scale, an id changes when the user rescales and
+--- every alert bound to it stops matching -- silently, because a buff that cannot
+--- be found is indistinguishable from one that is not active. Publishing the rect
+--- makes that visible in the panel at a glance instead.
+function M.identities()
+  local out = {}
+  for _, entry in pairs(spriteids) do
+    if #out >= MAX_IDENTITIES then break end
+    out[#out + 1] = { id = entry.id, atlas = entry.atlas, w = entry.w, h = entry.h }
+  end
+  return out
 end
 
 --- Buffs read on the last tick. Empty is meaningful — it means none are active.
@@ -377,8 +479,6 @@ end
 function M.onrender2d(event, scanning)
   if scanning ~= false then scanoutlines(event) end
 
-  if #pending == 0 then return end
-
   local waiting = pending
   pending = {}
 
@@ -410,7 +510,9 @@ function M.onrender2d(event, scanning)
           sizecount = sizecount + 1
         end
 
-        local slot = { id = icon.id, timeLeft = number, stacks = parens }
+        wipclaimed[string.format("%d,%d", icon.x, icon.y)] = true
+
+        local slot = { id = icon.id, timeLeft = number, stacks = parens, x = icon.x, source = "icon" }
         if isbuff then
           wipbuffs[#wipbuffs + 1] = slot
         else
@@ -436,8 +538,9 @@ function M.onrender2d(event, scanning)
           -- entirely and could not be watched for anything.
           seen[icon.id] = true
           wipparsed = wipparsed + 1
+          wipclaimed[string.format("%d,%d", icon.x, icon.y)] = true
 
-          local slot = { id = icon.id }
+          local slot = { id = icon.id, x = icon.x, source = "icon" }
           if isbuff then
             wipbuffs[#wipbuffs + 1] = slot
           else
@@ -462,6 +565,64 @@ function M.onrender2d(event, scanning)
             local entry = { id = icon.id, x = icon.x, y = icon.y, count = 1, err = icon.err }
             wipunpairedseen[key] = entry
             wipunpaired[#wipunpaired + 1] = entry
+          end
+        end
+      end
+    end
+  end
+
+  -- SPRITE-DRAWN BUFFS, WHICH RAISE NO ICON EVENT AND ARE OTHERWISE UNREACHABLE.
+  --
+  -- Everything above this line starts from `pending`, which is built from
+  -- onrendericon and nothing else. Bolt raises that only for images it
+  -- recognised as a rendered item model, so abilities, prayers and familiars
+  -- produce no event at all and half a measured bar could never be reached
+  -- however well the pairing worked.
+  --
+  -- This is the pattern modules/buffs/README.md documents and this file never
+  -- used: offer the module an image from THIS batch, with the details index just
+  -- past it.
+  --
+  -- THE FILTER IS THE MODULE'S OWN EQUALITY, ASKED EARLY. It validates a buff by
+  -- finding an outline quad at precisely the icon's top-left
+  -- (modules/buffs/buffs.lua:85). Asking that first, against the outline table
+  -- the sweep above just filled, is what holds this to one parse attempt per
+  -- buff on the bar rather than one per image per batch -- which was measured at
+  -- 2,366 a frame and cost five to ten FPS.
+  if scanning == false then return end
+
+  local vertexcount = event:vertexcount()
+  local verticesperimage = event:verticesperimage()
+
+  for i = 1, vertexcount, verticesperimage do
+    -- Textured only. An outline is itself a flat fill, and offering one to the
+    -- module as though it were an icon would be asking it about its own marker.
+    if event:vertexuv(i) ~= nil then
+      local x, y = event:vertexxy(i + 2)
+      if x ~= nil and y ~= nil then
+        local key = string.format("%d,%d", x, y)
+        if outlineat(x, y) ~= nil and not wipclaimed[key] then
+          wipattempts = wipattempts + 1
+          local ok, valid, number, parens, isbuff =
+            pcall(buffmodule.tryreadbuffdetails, buffmodule, event, i + verticesperimage, x, y)
+
+          if ok and valid then
+            local id = spriteid(event, i)
+            -- A sprite whose pixels cannot be read has no identity, and an
+            -- alert cannot be bound to something unnameable. Counted as an
+            -- attempt above either way, so the cost stays visible.
+            if id ~= nil and not seen[id] then
+              seen[id] = true
+              wipclaimed[key] = true
+              wipparsed = wipparsed + 1
+
+              local slot = { id = id, timeLeft = number, stacks = parens, x = x, source = "sprite" }
+              if isbuff then
+                wipbuffs[#wipbuffs + 1] = slot
+              else
+                wipdebuffs[#wipdebuffs + 1] = slot
+              end
+            end
           end
         end
       end
