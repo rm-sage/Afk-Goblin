@@ -94,8 +94,12 @@ internals, so pass B additionally skips any position already claimed by a paired
 Atlas rects are packed at runtime and are not stable between sessions, which is why the pixels are
 hashed rather than the rect.
 
-**This is the unverified part of the design, and it is built to say so.** The atlas rect and drawn
-size each id was derived from are published in `diag` — not on `BuffSlot`, which is on the hot path
+**CONFIRMED IN GAME 2026-08-09:** a full bar reads, with correct timers, on both paths. So the hash
+does identify sprites stably within a session. What remains unverified is only whether it survives an
+**interface-scale change** — if the atlas holds a variant per scale, ids move and alerts bound to
+them stop matching.
+
+The atlas rect and drawn size each id was derived from are published in `diag` — not on `BuffSlot`, which is on the hot path
 and read by alerters that have no use for them — and the detection panel shows them beside the id.
 An id that moves when it should not is then visible in one glance, rather than inferred from an
 alert that quietly stopped firing. If the hash proves unstable across interface scales, only the id

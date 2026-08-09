@@ -296,10 +296,11 @@ local HASH_MOD = 4294967296
 --- QUANTISED TO THE TOP FOUR BITS per channel, so filtering noise -- a channel
 --- off by one or two -- cannot change the id.
 ---
---- THIS IS THE PART OF THE DESIGN TAKEN ON TRUST rather than measured: whether
---- the atlas holds one variant per sprite or one per interface scale has not
---- been read out of a live draw stream. M.identities publishes the rect behind
---- each id so an id that moves when it should not is visible in the panel,
+--- CONFIRMED IN GAME 2026-08-09: a full bar reads with correct timers, so this
+--- does identify sprites stably within a session. Still unverified is whether an
+--- id survives an INTERFACE-SCALE change -- if the atlas holds a variant per
+--- scale, every id moves and every alert bound to one stops matching, silently.
+--- M.identities publishes the rect behind each id so that is visible in the panel,
 --- instead of being inferred later from an alert that quietly stopped firing.
 local function spriteid(event, index)
   local ax, ay, aw, ah = event:vertexatlasdetails(index)
