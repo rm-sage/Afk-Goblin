@@ -222,6 +222,15 @@ function fakechat:chatindexcouldbetimestamp(event, index, ax, ay, aw, ah)
   return img ~= nil and img.tsstart == true
 end
 
+--- Font sizes the module knows, keyed by atlas height.
+---
+--- Present because lua/detect/xp.lua indexes this directly as its cheap filter --
+--- a glyph lookup reads pixels, and rejecting a non-font-sized image by one table
+--- index is what makes scanning every batch affordable. The real table's values
+--- are the character trees; only the presence of the key matters here, so a
+--- fixture draws glyphs at height 9.
+fakechat.chatchars = { [9] = {} }
+
 --- Stands in for modules/buffs/buffs.lua. buffs.lua always passes a start index
 --- of 1, so the answer hangs off the event's first image.
 local fakebuffs = {}

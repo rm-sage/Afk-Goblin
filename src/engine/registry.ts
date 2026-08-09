@@ -60,9 +60,11 @@ export function isImplemented(type: string): boolean {
  * docs/superpowers/specs/2026-08-06-bolt-migration-design.md.
  */
 const AWAITING_DETECTION = new Set([
-  // Blocked on identifying the XP-drop '+' glyph against a live client.
-  "xpcounter",
-  "bigxp",
+  // XP is read as text now (lua/detect/xp.lua), so these are no longer blind —
+  // but only under "tot". A drop's number cannot say which skill it belongs to,
+  // so an alert naming a specific skill still reports itself unreadable at
+  // runtime rather than quietly watching everything. The skill field says so.
+  //
   // No detection written yet.
   "dialogtextsimple",
   "targetdeath",

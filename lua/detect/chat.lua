@@ -398,6 +398,13 @@ function M.onrender2d(event, scanning)
       end
     end
   end
+
+  -- Whether this batch turned out to hold a chat box, so main.lua can keep the
+  -- XP scan off it. Chat and XP drops are both drawn in the game's text font, and
+  -- a chat line reading "+50" would otherwise be indistinguishable from an XP
+  -- drop -- which would reset an inactivity timer and DELAY the alert it exists
+  -- to fire. See lua/detect/xp.lua.
+  return foundany
 end
 
 return M

@@ -45,6 +45,7 @@ const SOURCES = [
   "lua/detect/buffs.lua",
   "lua/detect/stats.lua",
   "lua/detect/probe.lua",
+  "lua/detect/xp.lua",
   "tests/lua/driver.lua",
 ];
 
@@ -438,6 +439,41 @@ export function chatBoxWithGlyphs(
     },
     timestamped,
   };
+}
+
+/**
+ * A run of text drawn in the game font, glyph by glyph.
+ *
+ * XP drops are read as text, so a fixture has to draw text. Each character is
+ * drawn twice — shadow then colour, a pixel apart, the same pairing the font
+ * always uses — and every distinct character gets its own atlas entry, because
+ * the lookup is handed atlas coordinates rather than an index.
+ *
+ * `gap` is the advance between characters. The detector merges glyphs into one
+ * run while they stay on a row and within MAX_GLYPH_GAP of each other, so a
+ * fixture can split one apart by widening this.
+ */
+export function fontRun(
+  text: string,
+  at: { x: number; y: number },
+  gap = 7,
+  atlasBase = 700,
+): ImageSpec[] {
+  const images: ImageSpec[] = [];
+  const atlas = new Map<string, number>();
+
+  [...text].forEach((ch, col) => {
+    let ax = atlas.get(ch);
+    if (ax === undefined) {
+      ax = atlasBase + atlas.size * 8;
+      atlas.set(ch, ax);
+    }
+    const x = at.x + col * gap;
+    images.push({ ax, ay: 300, aw: 6, ah: 9, x, y: at.y, char: ch, tint: [0, 0, 0] });
+    images.push({ ax, ay: 300, aw: 6, ah: 9, x: x + 1, y: at.y, char: ch, tint: [255, 255, 255] });
+  });
+
+  return images;
 }
 
 /** A chat box: an 11x11 speech-bubble anchor plus whatever it is showing. */

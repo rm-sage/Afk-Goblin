@@ -12,6 +12,7 @@ local chat = require("lua.detect.chat")
 local stats = require("lua.detect.stats")
 local buffs = require("lua.detect.buffs")
 local probe = require("lua.detect.probe")
+local xp = require("lua.detect.xp")
 
 -- The master tick, matching the engine's TICK_MS on the browser side.
 local TICK_US = 600000
@@ -94,8 +95,13 @@ bolt.onrender2d(function (event)
   -- point is that the expensive scans below get declined most of the time.
   local scanning = (bolt.time() - lasttick) < SCAN_BUDGET_US
 
-  chat.onrender2d(event, scanning)
+  -- Chat reports whether this batch held a chat box, and XP is kept off those.
+  -- Both read the same text font, so a chat line saying "+50" is otherwise
+  -- indistinguishable from an XP drop -- and a false drop resets an inactivity
+  -- timer, which DELAYS the alert rather than firing a spurious one.
+  local ischatbatch = chat.onrender2d(event, scanning)
   stats.onrender2d(event, scanning)
+  xp.onrender2d(event, scanning, ischatbatch)
 
   -- Buff PAIRING is not budgeted: its work is already proportional to the icons
   -- waiting rather than to everything on screen, and an icon's timer text can
@@ -186,6 +192,7 @@ bolt.onswapbuffers(function ()
   chat.request()
   stats.request()
   buffs.request()
+  xp.request()
 
   local lines = chat.drain()
   if lines ~= nil then
@@ -201,12 +208,21 @@ bolt.onswapbuffers(function ()
     link:send({ t = "chat", lines = out })
   end
 
+  -- XP drops go out as their own events rather than on the snapshot, because
+  -- they ARE events: the browser accumulates them into a running total, and a
+  -- level would have to be a level. Sent under "tot" only -- a drop's number
+  -- cannot say which skill it belongs to; see lua/detect/xp.lua.
+  for _, amount in ipairs(xp.read()) do
+    link:send({ t = "xp", skill = "tot", amount = amount })
+  end
+
   local buffslist, debuffslist = buffs.read()
 
   -- What detection actually saw, so an alert that never fires can be diagnosed
   -- from the UI instead of from a guess. Every field here is a count, and the
   -- interesting readings are the zeroes.
   local chatdiag = chat.diagnostics()
+  local xpdiag = xp.diagnostics()
   local diag = {
     chatBubbles = chatdiag.bubbles,
     chatConfirmed = chatdiag.confirmed,
@@ -233,6 +249,11 @@ bolt.onswapbuffers(function ()
     buffIdentities = buffs.identities(),
     barsRead = stats.seencount(),
     chatAnchors = chatdiag.anchors,
+    -- XP drops are read as text, so the interesting reading is the RATIO: runs
+    -- examined with none parsed means the font lookup is working and nothing on
+    -- screen is a drop, while zero examined means no text is being scanned at all.
+    xpRunsExamined = xpdiag.examined,
+    xpDropsRead = xpdiag.parsed,
   }
 
   link:send({

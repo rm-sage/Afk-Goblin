@@ -42,7 +42,16 @@ export const xpCounterAlerter = defineAlerter<XpCounterVars>({
   descr: "Triggers when you have not gained XP in a skill for a set time.",
   schema: XpCounterVars,
   fields: [
-    { key: "skill", kind: "select", label: "Skill", options: SKILL_OPTIONS },
+    {
+      key: "skill",
+      kind: "select",
+      label: "Skill",
+      help:
+        "Only Total works at the moment. XP drops are read as text, and the number beside a " +
+        "skill icon cannot say which skill it is — so any other choice shows no data rather than " +
+        "watching everything. While you are doing one activity, Total is the same thing.",
+      options: SKILL_OPTIONS,
+    },
     { key: "delay", kind: "number", label: "Alert after", min: 1, suffix: "sec without XP" },
     {
       key: "threshold",
@@ -109,7 +118,13 @@ export const bigXpAlerter = defineAlerter<BigXpVars>({
   descr: "Triggers after gaining a large XP drop in one go.",
   schema: BigXpVars,
   fields: [
-    { key: "skill", kind: "select", label: "Skill", options: SKILL_OPTIONS },
+    {
+      key: "skill",
+      kind: "select",
+      label: "Skill",
+      help: "Only Total works at the moment — see the note on the XP counter alert.",
+      options: SKILL_OPTIONS,
+    },
     { key: "threshold", kind: "number", label: "Minimum XP drop", min: 0 },
   ],
   create(vars) {

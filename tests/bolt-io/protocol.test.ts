@@ -115,6 +115,8 @@ describe("decodePluginMessage", () => {
       buffOutlines: 0,
       buffIdentities: [],
       barsRead: 0,
+      xpRunsExamined: 0,
+      xpDropsRead: 0,
       chatAnchors: [],
     });
   });

@@ -212,6 +212,15 @@ export const DiagnosticsSchema = z.object({
   /** How many of the four action-bar resource bars were read, out of four. */
   barsRead: z.number().int().nonnegative().default(0),
   /**
+   * Text runs the XP reader examined, and how many parsed as a drop.
+   *
+   * The RATIO is the reading. Runs examined with none parsed means the font
+   * lookup works and nothing on screen is an XP drop; zero examined means no text
+   * is being scanned at all, which is a different problem with a different fix.
+   */
+  xpRunsExamined: z.number().int().nonnegative().default(0),
+  xpDropsRead: z.number().int().nonnegative().default(0),
+  /**
    * Where each chat anchor candidate was, and what became of it.
    *
    * "Found 2, reading 1" is ambiguous on its own: an 11x11 image is a loose
