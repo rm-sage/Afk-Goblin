@@ -29,8 +29,9 @@ about which alerts anyone actually uses.
 
 | # | Work | Alerts it affects | Gated on |
 | --- | --- | --- | --- |
-| 1 | Chat colours over the bridge | **71** (precision) | nothing |
-| 2 | XP drop detection → `xpcounter`, `bigxp` | **4** | a live reading of the '+' glyph |
+| ~~1~~ | ~~Chat colours over the bridge~~ | **71** (precision) | **done** — needs in-game confirmation |
+| ~~2~~ | ~~XP drop detection → `xpcounter`, `bigxp`~~ | **1 of 4** | **done for Total** — see below |
+| 2b | Attribute a drop to its skill by hashing the icon | 3 | a live reading; only if Total proves insufficient |
 | 3 | Taskbar countdown / tooltip surface | 0 (a dropped feature, and a false README claim) | nothing |
 | 4 | `craftmenu` | 1 | nothing |
 | 5 | Model highlighting — enriched springs | 0 | two recorded colony sessions |
@@ -54,11 +55,24 @@ The vendored chat module reads text and reports no colour, so this means reading
 colour per fragment alongside it. Keep empty-means-unknown, so an older plugin against a newer UI
 degrades to today's behaviour rather than going silent.
 
-### 2. XP drops
+### 2. XP drops — done for Total
 
-`GameState.xp` is never populated. `registry.ts` records the blocker as identifying the XP-drop '+'
-glyph against a live client; the probe now exists to answer exactly that. bolt-alerts is a documented
-reference for the technique — **GPL2, so patterns only, never code**.
+There was never a glyph blocker. The vendored chat module already carries `+`, every digit, `,`, `.`,
+`k` and `m` across all seven font sizes, because since the 2026-01-19 interface update most game text
+uses the chat font. `lua/detect/xp.lua` reads drops with the same lookup chat uses.
+
+**Total only.** A drop is a skill icon beside a number, and the number cannot say which skill it is.
+Everything accumulates under `tot`; an alert naming a specific skill reports itself unreadable rather
+than quietly watching everything, and the skill field explains why. While you are doing one activity
+Total is equivalent, which is why 2b is speculative rather than scheduled.
+
+Two guards against reading ordinary text as XP, both because a false drop resets an inactivity timer
+and *delays* the alert — the failure direction that matters: only a `+` opens a run and the run admits
+nothing but digits, separators and a `k`/`m` suffix; and the scan is kept off any batch chat claimed,
+since chat and drops share the font.
+
+A drop lingers across ticks, so the total over-counts and cannot under-count. That delays an
+inactivity alert by roughly a drop's on-screen lifetime.
 
 ### 3. Taskbar countdown and tooltip
 
