@@ -114,6 +114,15 @@ export type ImageSpec = {
   /** What the chat module should answer for the box anchored at this image. */
   chat?: { scrolled?: boolean; messages?: string[] };
   /**
+   * The character this image draws, for the chat font lookup.
+   *
+   * The real module resolves this from pixels through a kilobytes-long table; a
+   * fixture states it. See `chatBoxWithGlyphs`.
+   */
+  char?: string;
+  /** Marks the '[' that opens a timestamp, which is what starts a new message. */
+  tsstart?: boolean;
+  /**
    * What the buff module should answer for the icon paired with this batch.
    *
    * `at` is the icon position this text belongs to. Set it and the fake rejects
@@ -355,6 +364,79 @@ export function bar(key: keyof typeof BAR_COLOURS, fill: number, row = 0): Image
     y: 500,
     x2: left + 1 + fill * 89,
     rgb: [...BAR_COLOURS[key]],
+  };
+}
+
+/**
+ * A chat box drawn glyph by glyph, so the colour pass has something to read.
+ *
+ * `chatBox` below states what the module WOULD assemble and draws no text at all,
+ * which is right for testing everything downstream of the read. Colours are not
+ * downstream of it: `lua/detect/chat.lua` reads them off the glyph vertices
+ * itself, so proving that works needs real glyphs.
+ *
+ * Each character is drawn TWICE — black drop-shadow, then the same glyph in the
+ * intended colour, one pixel along — because that is how the game draws font and
+ * how the vendored module finds a colour at all (`i + verticesperimage`). Each
+ * distinct character gets its own atlas entry, since `lookupchatcharacter` is
+ * handed atlas coordinates rather than an index.
+ *
+ * Messages are emitted newest-first, the order the engine renders them in.
+ */
+export function chatBoxWithGlyphs(
+  at: { x: number; y: number },
+  messages: Array<{ text: string; colour: [number, number, number] }>,
+): { event: Render2dEvent; timestamped: string[] } {
+  const images: ImageSpec[] = [];
+  // SPACES HAVE NO GLYPH, so they produce no vertex and are simply absent from
+  // what the module assembles. Stripping them here keeps the fixture's stated
+  // text and its drawn glyphs in agreement — and they have to agree exactly,
+  // because that text match is what attaches a colour to a message.
+  const timestamped = messages.map((m, n) => `[00:00:0${n}]${m.text.replaceAll(" ", "")}`);
+
+  // One atlas slot per distinct character, so a glyph is identifiable the way the
+  // real font table identifies it.
+  const atlas = new Map<string, { ax: number; ay: number }>();
+  const slotFor = (ch: string): { ax: number; ay: number } => {
+    let slot = atlas.get(ch);
+    if (slot === undefined) {
+      slot = { ax: 400 + atlas.size * 8, ay: 200 };
+      atlas.set(ch, slot);
+    }
+    return slot;
+  };
+
+  // Newest first, matching the engine. Each message occupies its own row.
+  const newestFirst = timestamped
+    .map((full, n) => ({ full, colour: messages[n]!.colour }))
+    .reverse();
+
+  newestFirst.forEach(({ full, colour }, row) => {
+    const y = at.y + 20 + row * 14;
+
+    [...full].forEach((ch, col) => {
+      const { ax, ay } = slotFor(ch);
+      const x = at.x + col * 7;
+      const timestampChar = col < 10;
+      // The timestamp is white brackets and timestamp blue; the body carries the
+      // colour under test. Only the opening '[' is a timestamp START.
+      const drawn: [number, number, number] = timestampChar ? [255, 255, 255] : colour;
+
+      images.push({
+        ax, ay, aw: 6, ah: 9, x, y, char: ch,
+        tsstart: col === 0,
+        tint: [0, 0, 0],
+      });
+      images.push({ ax, ay, aw: 6, ah: 9, x: x + 1, y, char: ch, tint: drawn });
+    });
+  });
+
+  return {
+    event: {
+      kind: "render2d",
+      images: [{ aw: 11, ah: 11, x: at.x, y: at.y, chat: { messages: timestamped } }, ...images],
+    },
+    timestamped,
   };
 }
 

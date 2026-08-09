@@ -200,6 +200,28 @@ function fakechat:tryreadchat(event, startindex, prevmostrecent, callback)
   return true, nil
 end
 
+--- The two public helpers lua/detect/chat.lua uses to read colours.
+---
+--- The real ones resolve a glyph through several kilobytes of font table keyed by
+--- pixels. A fixture says what a glyph IS instead: `char` on an image is the
+--- character it draws, and `tsstart` marks the '[' that opens a timestamp.
+---
+--- lookupchatcharacter receives ATLAS COORDINATES rather than an index, exactly
+--- as the real one does, so a fixture has to give each distinct glyph its own
+--- atlas entry -- which is also what stops the colour pass from being able to
+--- cheat by reading an image position it was never handed.
+function fakechat:lookupchatcharacter(event, ax, ay, aw, ah)
+  for _, img in ipairs(event:_images()) do
+    if (img.ax or 0) == ax and (img.ay or 0) == ay and img.char ~= nil then return img.char end
+  end
+  return nil
+end
+
+function fakechat:chatindexcouldbetimestamp(event, index, ax, ay, aw, ah)
+  local img = imageat(event:_images(), index)
+  return img ~= nil and img.tsstart == true
+end
+
 --- Stands in for modules/buffs/buffs.lua. buffs.lua always passes a start index
 --- of 1, so the answer hangs off the event's first image.
 local fakebuffs = {}

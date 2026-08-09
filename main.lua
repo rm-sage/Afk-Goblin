@@ -190,11 +190,13 @@ bolt.onswapbuffers(function ()
   local lines = chat.drain()
   if lines ~= nil then
     local out = {}
-    for i, text in ipairs(lines) do
-      -- The module reads text but reports no colour. The browser treats an empty
-      -- colour list as "unknown" and declines to filter on it, rather than
-      -- treating it as a mismatch that would silence every colour-filtered alert.
-      out[i] = { text = text, colors = {}, fragments = { text } }
+    for i, line in ipairs(lines) do
+      -- Colours come from lua/detect/chat.lua's own pass, since the vendored
+      -- module reads text and reports none. An EMPTY list still means "unknown"
+      -- and the browser declines to filter on it, rather than treating it as a
+      -- mismatch that would silence every colour-filtered alert -- which is the
+      -- fallback whenever that pass cannot reproduce the module's text exactly.
+      out[i] = { text = line.text, colors = line.colors, fragments = { line.text } }
     end
     link:send({ t = "chat", lines = out })
   end

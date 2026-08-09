@@ -164,10 +164,118 @@ function M.boxcount()
   return n
 end
 
-local function record(text)
+--- Characters in a "[HH:MM:SS]" prefix. Their colours belong to the timestamp,
+--- not to the message: every line carries a white bracket and timestamp blue, so
+--- counting them would make a filter for either match every message on screen.
+local TIMESTAMP_CHARS = 10
+
+--- 0..1 float colour to 0..255, matching how the vendored modules read colours.
+local function byte255(c)
+  if c == nil then return 0 end
+  return math.floor((c * 255.0) + 0.5)
+end
+
+--- Text colours of each message on screen, keyed by the text the module assembles.
+---
+--- WHY A SECOND PASS RATHER THAN A BETTER FIRST ONE. The vendored module reads
+--- text and reports no colour at all, and its callback hands over a string with
+--- no position, so there is nothing to correlate a colour to. Reimplementing its
+--- message assembly to capture both at once would mean owning the hard part it
+--- exists to provide -- timestamp grouping, ordering, the stop at the previously
+--- seen message -- and any drift between our parse and its parse would show up as
+--- chat alerts that quietly stop firing. So the module stays authoritative for
+--- text, this reads colours, and the two are reconciled BY TEXT: exact match or
+--- nothing. A message this pass fails to assemble identically gets no colours,
+--- which the browser already treats as "unknown" and declines to filter on.
+---
+--- Grouping mirrors modules/chat/chat.lua:69-98 deliberately: same stride, same
+--- consecutive-duplicate test, same "a timestamp at the first timestamp's x
+--- starts a message". Both public helpers it needs are exported by the module, so
+--- none of its private pixel constants are copied.
+---
+--- A GLYPH'S COLOUR IS AT `i + verticesperimage`. Font characters are drawn twice,
+--- black drop-shadow then the same glyph in the intended colour, and the module
+--- relies on exactly that offset at chat.lua:131 to spot a white '[' followed by
+--- timestamp blue. The two copies sit within a pixel of each other with the same
+--- atlas entry, so the duplicate test below collapses each pair onto the shadow.
+local function readcolours(event, startindex)
+  local vertexcount = event:vertexcount()
+  local vpi = event:verticesperimage()
+
+  local firstindex, timestampx, timestampy
+  for i = startindex, vertexcount, vpi do
+    local ax, ay, aw, ah = event:vertexatlasdetails(i)
+    local ok, isstamp = pcall(chatmodule.chatindexcouldbetimestamp, chatmodule, event, i, ax, ay, aw, ah)
+    if ok and isstamp then
+      local x, y = event:vertexxy(i + 2)
+      if x ~= nil and y ~= nil then
+        firstindex, timestampx, timestampy = i, x, y
+        break
+      end
+    end
+  end
+  if firstindex == nil then return nil end
+
+  local out = {}
+  local msg, chars, colours, seencolour = "", 0, {}, {}
+  local lastx, lasty, lastax, lastay
+
+  local function flush()
+    if #msg > 0 and #colours > 0 then out[msg] = colours end
+    msg, chars, colours, seencolour = "", 0, {}, {}
+  end
+
+  for i = firstindex, vertexcount, vpi do
+    local x, y = event:vertexxy(i + 2)
+    local ax, ay, aw, ah = event:vertexatlasdetails(i)
+
+    if x ~= nil and y ~= nil then
+      local duplicate = lastx ~= nil
+        and math.abs(x - lastx) < 2 and math.abs(y - lasty) < 2
+        and ax == lastax and ay == lastay
+
+      if not duplicate then
+        lastx, lasty, lastax, lastay = x, y, ax, ay
+
+        if x == timestampx then
+          local ok, isstamp =
+            pcall(chatmodule.chatindexcouldbetimestamp, chatmodule, event, i, ax, ay, aw, ah)
+          if ok and isstamp then
+            flush()
+            timestampy = y
+          end
+        end
+
+        if y >= timestampy then
+          local ok, char = pcall(chatmodule.lookupchatcharacter, chatmodule, event, ax, ay, aw, ah)
+          if ok and char ~= nil then
+            msg = msg .. tostring(char)
+            chars = chars + 1
+            if chars > TIMESTAMP_CHARS then
+              local r, g, b = event:vertexcolour(i + vpi)
+              local rr, gg, bb = byte255(r), byte255(g), byte255(b)
+              local key = string.format("%d,%d,%d", rr, gg, bb)
+              if not seencolour[key] then
+                seencolour[key] = true
+                colours[#colours + 1] = { rr, gg, bb }
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  flush()
+
+  return out
+end
+
+--- A line, with the colours it was drawn in. `colors` may be empty, which the
+--- browser reads as "unknown" and declines to filter on.
+local function record(text, colours)
   if pendingseen[text] then return end
   pendingseen[text] = true
-  pending[#pending + 1] = text
+  pending[#pending + 1] = { text = text, colors = colours or {} }
 end
 
 --- Feed a render2d event. Called for EVERY event, scanned or not.
@@ -227,6 +335,20 @@ function M.onrender2d(event, scanning)
         boxes[key] = box
       end
 
+      -- Colours are read at most ONCE per anchor per batch, and only when a
+      -- message is actually being recorded. The pass is as expensive as the
+      -- module's own read, and the overwhelmingly common case is a tick in which
+      -- nobody said anything -- so paying for it lazily is the difference between
+      -- a cost per message and a cost per frame.
+      local colourmap = nil
+      local function coloursfor(message)
+        if colourmap == nil then
+          local ok, map = pcall(readcolours, event, i + verticesperimage)
+          colourmap = (ok and map) or {}
+        end
+        return colourmap[message]
+      end
+
       local ischat, isscrolled = chatmodule:tryreadchat(
         event,
         i + verticesperimage,
@@ -248,7 +370,7 @@ function M.onrender2d(event, scanning)
           -- Messages arrive with their timestamp attached. Strip it: alerters
           -- match on what was said, and a timestamp would never match.
           local _, _, stripped = string.find(message, "^%[%d%d:%d%d:%d%d%](.+)")
-          if stripped then record(stripped) end
+          if stripped then record(stripped, coloursfor(message)) end
         end
       )
 

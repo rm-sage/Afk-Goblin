@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { chatBox, loadPlugin, TICK_US, type LuaPlugin, type SentMessage } from "./harness";
+import {
+  chatBox,
+  chatBoxWithGlyphs,
+  loadPlugin,
+  TICK_US,
+  type LuaPlugin,
+  type SentMessage,
+} from "./harness";
 
 /**
  * Chat detection, driven through main.lua.
@@ -455,6 +462,89 @@ describe("chat diagnostics", () => {
     expect(diag?.chatBubbles).toBe(0);
     expect(diag?.chatBubblesEver).toBe(1);
     expect(diag?.chatConfirmedEver).toBe(1);
+
+    plugin.close();
+  });
+
+  /**
+   * COLOUR IS WHY 71 OF 74 CHAT ALERTS WERE IMPRECISE. Every one of them carries
+   * a colour filter and the plugin sent none, so the filter was inert and the
+   * same text in any colour fired the alert.
+   */
+  it("reports the colour each message was drawn in", async () => {
+    const plugin = await loadPlugin();
+    const at = { x: 20, y: 400 };
+
+    prime(plugin, at);
+    const { event, timestamped } = chatBoxWithGlyphs(at, [
+      { text: "A Seren spirit appears", colour: [0, 255, 255] },
+    ]);
+    plugin.frame([event]);
+    tick(plugin);
+
+    const sent = plugin
+      .sent()
+      .filter((m) => m.t === "chat")
+      .flatMap((m) => (m as SentMessage & { lines: Array<{ text: string; colors: number[][] }> }).lines);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toBe(heard("A Seren spirit appears"));
+    // Cyan body. The timestamp's white and blue are excluded on purpose: every
+    // line carries them, so counting them would make a filter for either match
+    // every message on screen.
+    expect(sent[0]?.colors).toEqual([[0, 255, 255]]);
+    expect(timestamped[0]).toContain("ASerenspiritappears");
+
+    plugin.close();
+  });
+
+  it("keeps each message's colour separate when several arrive at once", async () => {
+    const plugin = await loadPlugin();
+    const at = { x: 20, y: 400 };
+
+    prime(plugin, at);
+    const { event } = chatBoxWithGlyphs(at, [
+      { text: "A Seren spirit appears", colour: [0, 255, 255] },
+      { text: "You feel your Prayer draining", colour: [255, 0, 0] },
+    ]);
+    plugin.frame([event]);
+    tick(plugin);
+
+    const sent = plugin
+      .sent()
+      .filter((m) => m.t === "chat")
+      .flatMap((m) => (m as SentMessage & { lines: Array<{ text: string; colors: number[][] }> }).lines);
+
+    const byText = new Map(sent.map((l) => [l.text, l.colors]));
+    expect(byText.get(heard("A Seren spirit appears"))).toEqual([[0, 255, 255]]);
+    expect(byText.get(heard("You feel your Prayer draining"))).toEqual([[255, 0, 0]]);
+
+    plugin.close();
+  });
+
+  /**
+   * THE SAFETY PROPERTY, and the reason this could be shipped at all. A message
+   * whose glyphs the colour pass cannot reproduce gets an EMPTY list, which the
+   * browser reads as "unknown" and declines to filter on — today's behaviour.
+   * Colour can therefore only add precision, never take away a working alert.
+   */
+  it("reports no colour rather than a wrong one when it cannot read the glyphs", async () => {
+    const plugin = await loadPlugin();
+    const at = { x: 20, y: 400 };
+
+    prime(plugin, at);
+    // chatBox states what the module assembles and draws no glyphs at all.
+    plugin.frame([chatBox(at, { messages: [said("12:00:01", "A Seren spirit appears")] })]);
+    tick(plugin);
+
+    const sent = plugin
+      .sent()
+      .filter((m) => m.t === "chat")
+      .flatMap((m) => (m as SentMessage & { lines: Array<{ text: string; colors: number[][] }> }).lines);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toBe(heard("A Seren spirit appears"));
+    expect(sent[0]?.colors).toEqual([]);
 
     plugin.close();
   });
