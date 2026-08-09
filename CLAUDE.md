@@ -67,8 +67,15 @@ error.
   rejects the message, and one rejected buff fails the whole snapshot.
 - New protocol fields should be defaulted, so an older plugin against a newer UI degrades to zeroes
   rather than failing to decode.
-- `TICK_MS` in `src/engine/loop.ts` and `TICK_US` in `main.lua` are the same tick and must stay in
-  step.
+- **Two cadences, and they are not the same number.** `TICK_MS` (600) in `src/engine/loop.ts` is the
+  DETECTION cadence and must stay in step with `TICK_US` in `main.lua`. `EVAL_MS` (200) is how often
+  the browser re-runs every alerter, so an alerter sees the same snapshot ~3 times. Consequences:
+  `AlerterModule.ticks` counts evaluation steps, not detection ticks; anything carried on the state
+  snapshot is re-read on every step, so **events must arrive as their own draining message** (like
+  `chat` and `xp`) rather than as a snapshot field; and a value derived from a snapshot must not be
+  extrapolated in a way that can run backwards — see `SnapshotStore.idleMs`, which anchors the click's
+  instant precisely because adding the snapshot's age made the value step by the change in delivery
+  latency and flap `inactive` at its threshold.
 
 ### Honest failure, everywhere
 

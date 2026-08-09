@@ -150,7 +150,13 @@ function dispatchAlerts(): void {
   const focused = snapshot.state?.focused ?? false;
   // Suppression keys off how recently you clicked, not focus: alt-tabbing to read
   // something is not the same as having stopped playing.
-  const quiet = shouldSuppress(settings.activeSuppress, snapshot.state?.clickIdleMs ?? 0, focused);
+  // The SAME idle reading the loop triggers on. Reading the raw snapshot value
+  // here while the loop read the corrected one let the two disagree by up to a
+  // tick, so at the suppression threshold the loop could consider an alert due
+  // while suppression still considered you active -- holding the alarm late, or
+  // worse, straddling the boundary mid-alarm and emitting stop then play, which
+  // restarts the tone from the beginning as an audible stutter.
+  const quiet = shouldSuppress(settings.activeSuppress, snapshot.idleMs, focused);
   const suppressed = settings.muted || quiet;
   const tooltips: string[] = [];
 

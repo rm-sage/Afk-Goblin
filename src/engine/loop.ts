@@ -34,14 +34,22 @@ export const TICK_MS = 600;
  * speech is guarded by a per-alert "already spoken" set. No alerter module sets
  * `ticks`, so the per-alerter cadence divisor is 1 everywhere and running the
  * counter faster cannot skip a check.
+ *
+ * 200ms rather than faster, on purpose. The UI samples a bar at 5fps
+ * (App.tsx's useRepaint) and styles.css already carries `transition: width 0.2s
+ * linear` on the bar, so the CSS transition is what actually smooths it and
+ * nothing below 200ms can be displayed. Evaluating at 100ms computed values
+ * nothing ever rendered, at double the CPU on the same thread that receives the
+ * bridge messages — which inflates delivery jitter, and jitter is what decides
+ * whether an alert flaps at its threshold.
  */
-export const EVAL_MS = 100;
+export const EVAL_MS = 200;
 
 export type ActiveAlerter = {
   config: AlerterBase;
   runtime: AlerterRuntime | null;
   state: TriggerState;
-  /** Master ticks between checks. */
+  /** Evaluation steps between checks. See `AlerterModule.ticks`. */
   ticks: number;
   /** Set when the alerter's own check() threw, so one bad type cannot kill the loop. */
   error: string | null;

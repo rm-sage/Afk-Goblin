@@ -1,7 +1,7 @@
 import type { PluginMessage } from "~/bolt-io/protocol";
 import { SnapshotStore } from "~/bolt-io/snapshot";
 import { GameStateView } from "~/bolt-io/game-state";
-import { TICK_MS, TickLoop } from "~/engine/loop";
+import { EVAL_MS, TICK_MS, TickLoop } from "~/engine/loop";
 import type { AlerterBase } from "~/store/schema";
 
 /**
@@ -59,8 +59,12 @@ export function replay(
 
   const loop = new TickLoop({
     now: () => now,
-    idleMs: () => store.state?.clickIdleMs ?? 0,
-    mouseIdleMs: () => store.state?.mouseIdleMs ?? 0,
+    // The SAME getters production uses. Feeding the raw snapshot values here made
+    // this harness stop modelling the loop it exists to test, which matters most
+    // for exactly the bug class it was built for: the corrected readings are
+    // anchored and monotone while the raw ones are neither.
+    idleMs: () => store.idleMs,
+    mouseIdleMs: () => store.mouseIdleMs,
     connected: () => store.connected,
     loggedIn: () => store.state?.loggedIn ?? false,
     state: () => view.state,
@@ -79,27 +83,41 @@ export function replay(
   const firings: Firing[] = [];
   const wasTriggered = new Set<string>();
 
+  // SEVERAL EVALUATION STEPS PER SNAPSHOT, because that is what production does.
+  // Detection pushes on TICK_MS and the browser evaluates on the shorter EVAL_MS,
+  // so an alerter sees the same snapshot more than once. Stepping this harness
+  // once per tick could not reproduce that at all — and re-consuming a snapshot is
+  // precisely the timing-and-staleness class it exists to catch.
+  //
+  // `options.ticks` still counts DETECTION ticks, so recordings and their
+  // expectations keep their meaning.
+  const stepsPerTick = Math.max(1, Math.round(TICK_MS / EVAL_MS));
+
   for (let tick = 1; tick <= totalTicks; tick++) {
-    now = tick * TICK_MS;
+    for (let step = 1; step <= stepsPerTick; step++) {
+      now = (tick - 1) * TICK_MS + step * EVAL_MS;
 
-    // Everything recorded at or before this instant has arrived by now.
-    while (next < pending.length && pending[next]!.atMs <= now) {
-      store.accept(pending[next]!.message);
-      next++;
-    }
+      // Everything recorded at or before this instant has arrived by now.
+      while (next < pending.length && pending[next]!.atMs <= now) {
+        store.accept(pending[next]!.message);
+        next++;
+      }
 
-    view.drainInto();
-    loop.step();
+      view.drainInto();
+      loop.step();
 
-    for (const a of loop.alerters) {
-      const key = a.config.name;
-      if (a.state.triggered) {
-        if (!wasTriggered.has(key)) {
-          wasTriggered.add(key);
-          firings.push({ tick, name: key });
+      // Reported against the DETECTION tick, so a firing's position is stated in
+      // the same units a recording is written in.
+      for (const a of loop.alerters) {
+        const key = a.config.name;
+        if (a.state.triggered) {
+          if (!wasTriggered.has(key)) {
+            wasTriggered.add(key);
+            firings.push({ tick, name: key });
+          }
+        } else {
+          wasTriggered.delete(key);
         }
-      } else {
-        wasTriggered.delete(key);
       }
     }
   }

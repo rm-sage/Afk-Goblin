@@ -187,4 +187,66 @@ describe("SnapshotStore", () => {
     expect(store.idleMs).toBe(0);
     expect(store.mouseIdleMs).toBe(0);
   });
+
+  /**
+   * `connected` wants any-message recency; the idle extrapolation wants STATE
+   * recency. One stamp cannot answer both, and main.lua sends the probe report
+   * AFTER the state on the same tick — so a shared stamp would report a snapshot
+   * as freshly arrived every time anyone pressed the probe button.
+   */
+  it("ages from the last state, not the last message of any kind", () => {
+    const c = clock();
+    const store = new SnapshotStore(c.now);
+    store.accept(stateAt(1));
+
+    c.advance(400);
+    expect(store.ageMs).toBe(400);
+
+    // A probe report is a message, but it is not a snapshot.
+    store.accept({ t: "probe", shapes: [], icons: [], bars: [], truncated: false });
+
+    expect(store.ageMs).toBe(400);
+    expect(store.connected).toBe(true);
+  });
+
+  /**
+   * THE FLAP THIS PREVENTS. Adding a snapshot's age to each reading yields
+   * `trueIdle - deliveryLatency`, so the value steps by the CHANGE in latency at
+   * every snapshot boundary — backwards whenever latency rises. `inactive`
+   * triggers on the bare comparison `idleMs >= targetMs` with no hysteresis, so a
+   * backward step at the crossing un-fires the alert: the alarm stops and
+   * restarts from zero and the alert speaks a second time.
+   *
+   * Anchoring the click's instant instead makes the value monotone by
+   * construction between real clicks.
+   */
+  it("never runs an idle timer backwards when delivery latency rises", () => {
+    const c = clock();
+    const store = new SnapshotStore(c.now);
+
+    store.accept({ ...stateAt(1), clickIdleMs: 5_000 });
+    expect(store.idleMs).toBe(5_000);
+
+    // One tick later the true idle time is 5600. A snapshot that took 20ms longer
+    // to arrive reports slightly less than that.
+    c.advance(600);
+    const before = store.idleMs;
+    store.accept({ ...stateAt(2), clickIdleMs: 5_580 });
+
+    expect(store.idleMs).toBeGreaterThanOrEqual(before);
+    expect(store.idleMs).toBe(5_600);
+  });
+
+  /** A real click moves the anchor immediately — it is nothing like jitter. */
+  it("resets an idle timer as soon as a click is reported", () => {
+    const c = clock();
+    const store = new SnapshotStore(c.now);
+    store.accept({ ...stateAt(1), clickIdleMs: 5_000, mouseIdleMs: 5_000 });
+
+    c.advance(600);
+    store.accept({ ...stateAt(2), clickIdleMs: 10, mouseIdleMs: 10 });
+
+    expect(store.idleMs).toBe(10);
+    expect(store.mouseIdleMs).toBe(10);
+  });
 });

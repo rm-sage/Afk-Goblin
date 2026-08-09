@@ -129,7 +129,14 @@ export interface AlerterModule<TVars> {
   schema: ZodType<TVars>;
   /** Editable settings, in the order they should appear in the editor. */
   fields: FieldSpec[];
-  /** How many master ticks between checks. 1 = every 600ms. */
+  /**
+   * How many EVALUATION steps between checks. 1 = every `EVAL_MS`.
+   *
+   * Counted in evaluation steps, not detection ticks — those are separate
+   * cadences now, and this used to say "master ticks... 1 = every 600ms", which
+   * became false by a factor of three when the browser stopped evaluating on the
+   * push interval. Write `ticks: 3` to mean 600ms, not `ticks: 1`.
+   */
   ticks?: number;
   create(vars: TVars): AlerterRuntime;
 }
