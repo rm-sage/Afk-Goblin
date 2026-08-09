@@ -229,7 +229,11 @@ end
 --- index is what makes scanning every batch affordable. The real table's values
 --- are the character trees; only the presence of the key matters here, so a
 --- fixture draws glyphs at height 9.
-fakechat.chatchars = { [9] = {} }
+--- Keyed by GLYPH height, not by font size, which is how the real table works:
+--- digits and capitals sit at {8,9,10,12,13,14,16}, '+' at {6,7,9,10,11,12}, ','
+--- at {3,4,5} and '.' at {2,3}. A fixture draws a line at one size and therefore
+--- draws several different heights at once.
+fakechat.chatchars = { [2] = {}, [3] = {}, [4] = {}, [6] = {}, [8] = {}, [9] = {}, [13] = {} }
 
 --- Stands in for modules/buffs/buffs.lua. buffs.lua always passes a start index
 --- of 1, so the answer hangs off the event's first image.

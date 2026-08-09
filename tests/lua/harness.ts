@@ -453,6 +453,31 @@ export function chatBoxWithGlyphs(
  * run while they stay on a row and within MAX_GLYPH_GAP of each other, so a
  * fixture can split one apart by widening this.
  */
+/**
+ * Atlas height of each glyph at one font size, read out of the vendored tables.
+ *
+ * NOT ALL THE SAME, AND THAT IS THE WHOLE POINT. `chatchars` is keyed by a
+ * glyph's own bounding-box height rather than by font size: digits and capitals
+ * live at {8,9,10,12,13,14,16}, '+' at {6,7,9,10,11,12}, ',' at {3,4,5} and '.'
+ * at {2,3}. So within ONE line at ONE size the quads have different heights, and
+ * on a shared baseline their TOP edges are several pixels apart.
+ *
+ * Drawing every glyph at one height — which this helper used to do — makes any
+ * reader that groups a run by its top edge look correct. It is not: a comma's top
+ * sits ~4px below a digit's, so "+1,234" breaks at the comma and reads as 1.
+ */
+const GLYPH_HEIGHT: Record<string, number> = {
+  ",": 4,
+  ".": 3,
+  "+": 6,
+  "/": 13,
+};
+
+function glyphHeight(ch: string): number {
+  // Digits, letters and everything else this helper is asked to draw sit at 8.
+  return GLYPH_HEIGHT[ch] ?? 8;
+}
+
 export function fontRun(
   text: string,
   at: { x: number; y: number },
@@ -468,9 +493,13 @@ export function fontRun(
       ax = atlasBase + atlas.size * 8;
       atlas.set(ch, ax);
     }
+    const ah = glyphHeight(ch);
     const x = at.x + col * gap;
-    images.push({ ax, ay: 300, aw: 6, ah: 9, x, y: at.y, char: ch, tint: [0, 0, 0] });
-    images.push({ ax, ay: 300, aw: 6, ah: 9, x: x + 1, y: at.y, char: ch, tint: [255, 255, 255] });
+    // `at.y` is the BASELINE. A short glyph is drawn lower so its bottom lands on
+    // it, which is how the game lays text out and what makes the top edges differ.
+    const y = at.y - ah;
+    images.push({ ax, ay: 300, aw: 6, ah, x, y, char: ch, tint: [0, 0, 0] });
+    images.push({ ax, ay: 300, aw: 6, ah, x: x + 1, y, char: ch, tint: [255, 255, 255] });
   });
 
   return images;

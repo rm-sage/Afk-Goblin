@@ -61,6 +61,32 @@ describe("XP drop detection", () => {
     plugin.close();
   });
 
+  /**
+   * THE REGRESSION. `chatchars` is keyed by a glyph's own bounding-box height, not
+   * by font size: at one size digits are 8 tall, '+' is 6, ',' is 4 and '.' is 3.
+   * Text sits on a shared BASELINE, so those quads end at the same y and start at
+   * very different ones — a comma's top is ~4px below a digit's.
+   *
+   * The first version grouped a run by its TOP edge within 2px, so it broke at
+   * every comma and read "+1,234" as 1 — and broke straight after the '+' at any
+   * font size where '+' and the digits do not share a height. It passed anyway,
+   * because `fontRun` drew every glyph at one height and so could not fail.
+   *
+   * A big comma-separated number is also exactly what the XP counter interface
+   * shows, so this is the case that has to hold before reading that.
+   */
+  it("reads a run whose glyphs are different heights on one baseline", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([{ kind: "render2d", images: fontRun("+37,129,038", { x: 900, y: 200 }) }]);
+    tick(plugin);
+
+    expect(amounts(plugin)).toEqual([37129038]);
+
+    plugin.close();
+  });
+
   it("applies a k or m suffix", async () => {
     const plugin = await loadPlugin();
 

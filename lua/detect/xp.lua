@@ -52,13 +52,27 @@ local ALLOWED = {
 --- Multipliers a drop's suffix can carry.
 local MULTIPLIER = { k = 1000, m = 1000000 }
 
---- Largest horizontal gap between two glyphs still counted as one run, in pixels.
+--- Largest gap BETWEEN two glyph boxes still counted as one run, in pixels.
 ---
---- Generous because it must hold at every interface scale, and tight enough that
---- two separate drops side by side do not merge. A space inside a drop does not
---- arise -- the format is '+' then digits -- so this only has to span the natural
---- advance between adjacent characters.
-local MAX_GLYPH_GAP = 14
+--- Measured edge to edge -- the next glyph's left against the previous glyph's
+--- right -- rather than between their left edges. An advance-based figure has to
+--- be loose enough for the largest font and is then far too loose for the
+--- smallest; a real gap barely changes with scale.
+local MAX_GLYPH_GAP = 6
+
+--- How far two glyphs' BOTTOM edges may differ and still count as one line.
+---
+--- GROUPING BY THE BOTTOM IS THE WHOLE TRICK, and grouping by the top was a bug
+--- that shipped. `chatchars` is keyed by a glyph's own bounding-box height, not by
+--- font size: at one size digits and capitals are 8 tall, '+' is 6, ',' is 4 and
+--- '.' is 3. Text sits on a shared BASELINE, so those quads all end at the same y
+--- and START at wildly different ones -- a comma's top is ~4px below a digit's.
+---
+--- Grouping on the top edge therefore broke the run at every comma, so "+1,234"
+--- read as 1, and broke it straight after the '+' at any font size where '+' and
+--- the digits do not happen to share a height. Bottoms differ by a pixel or two
+--- for glyphs that descend slightly, hence a small tolerance rather than none.
+local BASELINE_TOLERANCE = 3
 
 --- Runs published on the tick, and the tick in progress.
 local drops, wipdrops = {}, {}
@@ -144,16 +158,28 @@ function M.onrender2d(event, scanning, ischatbatch)
   local vpi = event:verticesperimage()
 
   local run = nil
-  local lastx, lasty, lastax, lastay
+  local lastleft, lastright, lastbottom, lasttop, lastax, lastay
 
   for i = 1, vertexcount, vpi do
     local ax, ay, aw, ah = event:vertexatlasdetails(i)
 
     if ah ~= nil and chatmodule.chatchars[ah] ~= nil then
-      local x, y = event:vertexxy(i + 2)
-      if x ~= nil and y ~= nil then
-        local duplicate = lastx ~= nil
-          and math.abs(x - lastx) < 2 and math.abs(y - lasty) < 2
+      -- BOTH corners. Offset 2 within an image is its top-left and offset 0 the
+      -- far one, but min/max rather than assuming which is which, so a flipped or
+      -- stretched text quad at a fractional interface scale still measures right.
+      local ax1, ay1 = event:vertexxy(i)
+      local ax2, ay2 = event:vertexxy(i + 2)
+
+      if ax1 ~= nil and ay1 ~= nil and ax2 ~= nil and ay2 ~= nil then
+        local left = math.min(ax1, ax2)
+        local right = math.max(ax1, ax2)
+        local top = math.min(ay1, ay2)
+        local bottom = math.max(ay1, ay2)
+
+        -- The colour copy of a glyph sits within a pixel of its shadow with the
+        -- same atlas entry, so the pair collapses onto whichever came first.
+        local duplicate = lastleft ~= nil
+          and math.abs(left - lastleft) < 2 and math.abs(top - lasttop) < 2
           and ax == lastax and ay == lastay
 
         if not duplicate then
@@ -162,8 +188,10 @@ function M.onrender2d(event, scanning, ischatbatch)
 
           if char ~= nil then
             local continues = run ~= nil
-              and lasty ~= nil and math.abs(y - lasty) < 2
-              and x >= lastx and (x - lastx) <= MAX_GLYPH_GAP
+              and lastbottom ~= nil
+              and math.abs(bottom - lastbottom) <= BASELINE_TOLERANCE
+              and left >= lastleft
+              and (left - lastright) <= MAX_GLYPH_GAP
 
             if continues and ALLOWED[tostring(char)] then
               run = run .. tostring(char)
@@ -174,7 +202,8 @@ function M.onrender2d(event, scanning, ischatbatch)
               run = (tostring(char) == "+") and "+" or nil
             end
 
-            lastx, lasty, lastax, lastay = x, y, ax, ay
+            lastleft, lastright, lastbottom, lasttop = left, right, bottom, top
+            lastax, lastay = ax, ay
           end
         end
       end
