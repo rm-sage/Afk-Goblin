@@ -58,7 +58,7 @@ describe("buff detection", () => {
     plugin.frame(buffDraw(2, 1344, { number: 27, parens: 1 }));
     tick(plugin);
 
-    expect(buffs(plugin)).toEqual([{ id: "2:1344", timeLeft: 27, stacks: 1 }]);
+    expect(buffs(plugin)).toMatchObject([{ id: "2:1344", timeLeft: 27, stacks: 1 }]);
 
     plugin.close();
   });
@@ -113,7 +113,7 @@ describe("buff detection", () => {
     plugin.idle(12);
     tick(plugin);
 
-    expect(buffs(plugin)).toEqual([{ id: "2:1344", timeLeft: 27, stacks: null }]);
+    expect(buffs(plugin)).toMatchObject([{ id: "2:1344", timeLeft: 27, stacks: null }]);
 
     plugin.close();
   });
@@ -143,7 +143,7 @@ describe("buff detection", () => {
     ]);
     tick(plugin);
 
-    expect(buffs(plugin)).toEqual([
+    expect(buffs(plugin)).toMatchObject([
       { id: "2:66", timeLeft: 180, stacks: null },
       { id: "1:18", timeLeft: 540, stacks: null },
       { id: "2:1239", timeLeft: 360, stacks: null },
@@ -200,7 +200,7 @@ describe("buff detection", () => {
     ]);
     tick(plugin);
 
-    expect(buffs(plugin)).toEqual([
+    expect(buffs(plugin)).toMatchObject([
       { id: "2:66", timeLeft: 180, stacks: null },
       { id: "1:18", timeLeft: 540, stacks: null },
     ]);
@@ -272,7 +272,7 @@ describe("buff detection", () => {
       tick(plugin);
     }
 
-    expect(buffs(plugin)).toEqual([{ id: "3:77", timeLeft: 30, stacks: null }]);
+    expect(buffs(plugin)).toMatchObject([{ id: "3:77", timeLeft: 30, stacks: null }]);
 
     plugin.close();
   });
@@ -306,8 +306,8 @@ describe("buff detection", () => {
     tick(plugin);
 
     const state = plugin.latest();
-    expect(state?.buffs).toEqual([{ id: "2:1344", timeLeft: 27, stacks: null }]);
-    expect(state?.debuffs).toEqual([{ id: "3:902", timeLeft: 9, stacks: null }]);
+    expect(state?.buffs).toMatchObject([{ id: "2:1344", timeLeft: 27, stacks: null }]);
+    expect(state?.debuffs).toMatchObject([{ id: "3:902", timeLeft: 9, stacks: null }]);
 
     plugin.close();
   });
@@ -430,7 +430,7 @@ describe("buff diagnostics", () => {
     ]);
     tick(plugin);
 
-    expect(buffs(plugin)).toEqual([{ id: "1:366", timeLeft: null, stacks: null }]);
+    expect(buffs(plugin)).toMatchObject([{ id: "1:366", timeLeft: null, stacks: null }]);
     expect(plugin.latest()?.diag.buffUnpaired).toEqual([]);
 
     plugin.close();
@@ -452,7 +452,7 @@ describe("buff diagnostics", () => {
     tick(plugin);
 
     expect(buffs(plugin)).toEqual([]);
-    expect(plugin.latest()?.debuffs).toEqual([{ id: "1:366", timeLeft: null, stacks: null }]);
+    expect(plugin.latest()?.debuffs).toMatchObject([{ id: "1:366", timeLeft: null, stacks: null }]);
 
     plugin.close();
   });
@@ -728,6 +728,44 @@ describe("buff diagnostics", () => {
     tick(plugin);
 
     expect(plugin.latest()?.buffs).toHaveLength(1);
+
+    plugin.close();
+  });
+
+  /**
+   * Ids are opaque by construction — a model signature or a pixel hash — so
+   * position is the only handle a person has on which entry in the picker is
+   * which. Numbered across buffs and debuffs together, because they share a bar
+   * and "third along" has to mean third on screen.
+   */
+  it("numbers buffs left to right across the whole bar", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      spriteBuff({ at: { x: 1546, y: 990 }, texture: "third", number: 10 }),
+      spriteBuff({ at: { x: 1456, y: 990 }, texture: "first", number: 20 }),
+      spriteBuff({ at: { x: 1516, y: 990 }, texture: "second", number: 30, isbuff: false }),
+    ]);
+    tick(plugin);
+
+    const state = plugin.latest();
+    const bar = [...(state?.buffs ?? []), ...(state?.debuffs ?? [])].sort((a, b) => a.slot - b.slot);
+    expect(bar.map((b) => b.slot)).toEqual([1, 2, 3]);
+    expect(bar.map((b) => b.timeLeft)).toEqual([20, 30, 10]);
+    expect(bar.map((b) => b.source)).toEqual(["sprite", "sprite", "sprite"]);
+
+    plugin.close();
+  });
+
+  it("records a buff found through an icon event as coming from the icon path", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame(buffDraw(1, 366, { number: 27 }));
+    tick(plugin);
+
+    expect(plugin.latest()?.buffs[0]?.source).toBe("icon");
 
     plugin.close();
   });

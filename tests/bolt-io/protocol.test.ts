@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodePluginMessage } from "~/bolt-io/protocol";
+import { BuffSlotSchema, decodePluginMessage } from "~/bolt-io/protocol";
 
 /**
  * Frame a value the way Bolt delivers it.
@@ -39,7 +39,7 @@ describe("decodePluginMessage", () => {
     expect(msg.clickIdleMs).toBe(4200);
     expect(msg.mouseIdleMs).toBe(900);
     expect(msg.stats).toEqual({ hp: 0.28, pray: 0.91, sum: 1, dren: 0.4 });
-    expect(msg.buffs).toEqual([{ id: "overload", timeLeft: 27, stacks: null }]);
+    expect(msg.buffs).toMatchObject([{ id: "overload", timeLeft: 27, stacks: null }]);
     expect(msg.player).toEqual({ x: 3221, y: 3218, z: 0 });
     expect(msg.models).toEqual(["enrichedspring"]);
     expect(msg.craftProgress).toBeNull();
@@ -56,14 +56,14 @@ describe("decodePluginMessage", () => {
     const msg = decodePluginMessage(frame({ ...STATE, buffs: [{ id: "2:1344", timeLeft: 27 }] }));
 
     if (msg?.t !== "state") throw new Error("expected a state message");
-    expect(msg.buffs).toEqual([{ id: "2:1344", timeLeft: 27, stacks: null }]);
+    expect(msg.buffs).toMatchObject([{ id: "2:1344", timeLeft: 27, stacks: null }]);
   });
 
   it("decodes a buff showing no timer at all", () => {
     const msg = decodePluginMessage(frame({ ...STATE, buffs: [{ id: "2:1344" }] }));
 
     if (msg?.t !== "state") throw new Error("expected a state message");
-    expect(msg.buffs).toEqual([{ id: "2:1344", timeLeft: null, stacks: null }]);
+    expect(msg.buffs).toMatchObject([{ id: "2:1344", timeLeft: null, stacks: null }]);
   });
 
   it("carries detection diagnostics through", () => {
@@ -294,5 +294,17 @@ describe("decodePluginMessage, chat readability", () => {
     if (msg?.t !== "state") throw new Error("expected a state message");
     expect(msg.chatAvailable).toBe(false);
     expect(msg.chatScrolledUp).toBe(false);
+  });
+
+  /**
+   * An older plugin sends neither field. Both must default rather than reject:
+   * one rejected buff fails the whole snapshot, which surfaces in game as the
+   * plugin going silent the moment an ordinary buff appears.
+   */
+  it("defaults slot and source on a buff from an older plugin", () => {
+    const decoded = BuffSlotSchema.parse({ id: "1:366" });
+    expect(decoded.slot).toBe(0);
+    expect(decoded.source).toBe("unknown");
+    expect(decoded.timeLeft).toBeNull();
   });
 });

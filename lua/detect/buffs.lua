@@ -320,6 +320,15 @@ end
 --- diagnostic counters that were supposed to explain the empty list were zeroed
 --- by the very same call.
 function M.request()
+  -- Numbered across BOTH lists before publishing, because buffs and debuffs
+  -- share one bar and the picker's "third along" has to mean third on screen
+  -- rather than third of its own kind.
+  local ordered = {}
+  for _, b in ipairs(wipbuffs) do ordered[#ordered + 1] = b end
+  for _, b in ipairs(wipdebuffs) do ordered[#ordered + 1] = b end
+  table.sort(ordered, function (a, b) return (a.x or 0) < (b.x or 0) end)
+  for i, b in ipairs(ordered) do b.slot = i end
+
   buffs, debuffs = wipbuffs, wipdebuffs
   icons, parsed = wipicons, wipparsed
   attempts = wipattempts

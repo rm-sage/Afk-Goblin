@@ -44,6 +44,25 @@ export const BuffSlotSchema = z.object({
   timeLeft: z.number().nullable().default(null),
   /** The parenthesised number some buffs carry, or null when absent. See above. */
   stacks: z.number().nullable().default(null),
+  /**
+   * Position on the bar, left to right, 1-based. 0 when unknown.
+   *
+   * The picker's only handle on which entry is which. Ids are opaque by
+   * construction — a model signature or a hash of the icon's pixels — so "the
+   * third one along" is the one description that matches what is on screen.
+   * Counted across buffs and debuffs together, because they share the bar.
+   */
+  slot: z.number().int().nonnegative().default(0),
+  /**
+   * Which detection path found this buff.
+   *
+   * Published so the blind spot is measurable per buff rather than only as the
+   * aggregate difference between outlines and buffs read. "icon" means Bolt
+   * recognised a rendered item model and announced it; "sprite" means it was
+   * found by reading the draw stream directly, which is the only way abilities,
+   * prayers and familiars can be seen at all.
+   */
+  source: z.enum(["icon", "sprite", "unknown"]).default("unknown"),
 });
 
 export const PlayerSchema = z.object({

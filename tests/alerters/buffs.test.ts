@@ -17,7 +17,9 @@ function ctx(slots: BuffSlot[], over: Partial<AlerterContext> = {}): AlerterCont
 }
 
 function slot(id: string, timeLeft: number | null): BuffSlot {
-  return { id, timeLeft, stacks: null };
+  // `slot` and `source` are for the picker and the diagnostics panel; the
+  // alerter is indifferent to both, so they carry their defaults here.
+  return { id, timeLeft, stacks: null, slot: 0, source: "unknown" };
 }
 
 function make(vars: Partial<{ buffid: string; isdebuff: boolean; starttime: number; endtime: number }>) {
