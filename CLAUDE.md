@@ -17,7 +17,8 @@ npm run dev         # plain-browser vite server; no plugin attached, so everythi
 
 npx vitest run tests/lua/chat.test.ts          # one file
 npx vitest run tests/lua -t "scrolled"         # one test by name
-luac5.4 -p main.lua                            # CI syntax-checks every .lua file this way
+npx vitest run tests/lua/dialect.test.ts       # plugin Lua must stay Lua 5.1 — see below
+luajit -bl main.lua /dev/null                  # CI byte-compiles every .lua file this way
 ```
 
 ## The dev loop, and the one thing that isn't hot
@@ -105,7 +106,14 @@ Discovered the hard way; don't re-derive them.
 
 ## Testing
 
-- `tests/lua/` boots the real `main.lua` and `lua/**` in a Lua 5.4 VM (wasmoon) against a fake Bolt
+- **Bolt's plugin host is LuaJIT 2.1, i.e. Lua 5.1** — verified from `bolt.exe`'s exported symbols
+  and version banners. Everything under `lua/` must stay in that dialect: no `//`, no bitwise
+  `& | ~ << >>`, no `<const>`/`<close>`. The test VM is **5.4**, which accepts all of those, so a
+  green suite does not prove the plugin will load. `tests/lua/dialect.test.ts` guards this at source
+  level and CI byte-compiles with `luajit`. This has already cost one play session: three Lua 5.3
+  operators in a hash killed the plugin at load, and the only symptom was Bolt's enable toggle
+  flipping itself back off.
+- `tests/lua/` boots the real `main.lua` and `lua/**` in a Lua VM (wasmoon) against a fake Bolt
   host (`tests/lua/driver.lua`), renders frames, advances ticks, and asserts on the JSON decoded
   through the real zod schema. **A new file under `lua/` must be added to `SOURCES` in
   `tests/lua/harness.ts`** or it won't be mounted. This suite exists because the bugs that actually

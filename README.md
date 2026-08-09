@@ -103,7 +103,7 @@ Lua (detection) · TypeScript · Preact · zod · Vite
 
 Detection runs as Lua inside the game process and pushes state snapshots; rule evaluation, storage
 and the whole UI run in an embedded browser, so the Lua layer deliberately holds the least logic.
-It is tested too: `tests/lua/` boots `main.lua` in a real Lua 5.4 VM against a fake Bolt host and
+It is tested too: `tests/lua/` boots `main.lua` in a real Lua VM against a fake Bolt host and
 drives it frame by frame. See
 [`docs/superpowers/specs/2026-08-06-bolt-migration-design.md`](docs/superpowers/specs/2026-08-06-bolt-migration-design.md).
 
@@ -121,7 +121,7 @@ the loop is `npm run build`, then restart the plugin.
 ### Testing the Lua
 
 `tests/lua/` runs the real `main.lua`, `lua/bridge.lua`, `lua/json.lua` and `lua/detect/*` inside a
-Lua 5.4 VM ([wasmoon](https://github.com/ceifa/wasmoon)). Only the Bolt host and the two vendored
+Lua VM ([wasmoon](https://github.com/ceifa/wasmoon)). Only the Bolt host and the two vendored
 pixel-reading modules are faked, so a test can render a frame, let a tick pass, and assert on the
 JSON that would have reached the browser — decoded through the real zod schema, which is what
 catches a field Lua quietly stopped sending.
@@ -131,10 +131,16 @@ a list cleared one line before it was read, a scan window closed after the first
 none of them were visible to the browser-side tests or to a syntax check. Each cost a live play
 session to find.
 
+**Mind the dialect gap.** Bolt's plugin host is LuaJIT 2.1 — Lua **5.1** — while wasmoon is Lua
+**5.4**, which accepts everything 5.1 does and a good deal more. A green suite therefore does not
+prove the plugin will even load: three Lua 5.3 operators in a hash function once compiled cleanly
+here and were syntax errors in game, so the plugin died at startup and the only symptom was Bolt's
+enable toggle flipping itself back off. `tests/lua/dialect.test.ts` scans for 5.2+ constructs, and
+CI byte-compiles every file with `luajit`, which is the authoritative check.
+
 `app/probe.html` remains the bridge diagnostics page: handshake, tick rate, activity timers, both
 message directions and config round-trip. It answers the questions a test cannot — whether
-`plugin://` loads and whether Bolt really delivers what its docs say. CI also runs `luac -p` over
-every Lua file, so a syntax error cannot ship as a dead plugin.
+`plugin://` loads and whether Bolt really delivers what its docs say.
 
 ## Credit
 

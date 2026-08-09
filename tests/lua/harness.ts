@@ -1,5 +1,5 @@
 /**
- * Runs the plugin's Lua inside a real Lua 5.4 VM.
+ * Runs the plugin's Lua inside a real Lua VM.
  *
  * The Lua layer used to be untestable — it only ran inside the game — so its
  * bugs were found by playing RuneScape and noticing an alert that never fired.
@@ -8,8 +8,21 @@
  * (see driver.lua) so a frame can be rendered, a tick can pass, and the JSON
  * that would have reached the browser can be asserted on directly.
  *
- * Lua 5.4 specifically: Bolt's plugin host is 5.4, and the vendored modules use
- * goto/labels, which 5.1 does not have.
+ * MIND THE DIALECT GAP. This VM is wasmoon, which is Lua 5.4. Bolt's plugin host
+ * is LuaJIT 2.1, which is Lua 5.1 — verified from the shipped binary's exported
+ * symbols and version banners, not assumed. 5.4 accepts everything 5.1 does and
+ * a good deal more, so a passing test here does NOT establish that the plugin
+ * will even load.
+ *
+ * That gap has bitten once, exactly as badly as it sounds: `//`, `~` and `&` in
+ * a hash function compiled here and were syntax errors in game, so the plugin
+ * died at load and the only symptom was Bolt's enable toggle flipping itself
+ * back off. tests/lua/dialect.test.ts now scans for 5.2+ constructs, and CI
+ * byte-compiles every file with luajit. Neither of those lives here because this
+ * VM cannot express the constraint.
+ *
+ * (The vendored modules use goto/labels, which is a 5.2 feature LuaJIT 2.1
+ * backports — that is why they run on the host despite it being 5.1.)
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

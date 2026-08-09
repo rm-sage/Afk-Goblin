@@ -31,14 +31,34 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # `npm test` already runs the Lua layer in a real VM (tests/lua/), but it
-      # only loads the files main.lua reaches. This catches a syntax error in
-      # anything else -- including the vendored submodules -- which would
-      # otherwise ship and surface only as a dead plugin in-game.
-      - name: Install Lua and zstd
-        run: sudo apt-get update && sudo apt-get install -y lua5.4 zstd
-      - name: Syntax-check every Lua file
-        run: find . -name '*.lua' -not -path './node_modules/*' -print0 | xargs -0 -n1 luac5.4 -p
+      # LUAJIT, NOT lua5.4, AND THE DIFFERENCE COST A PLAY SESSION.
+      #
+      # Bolt's plugin host is LuaJIT 2.1 -- Lua 5.1 semantics. Confirmed from the
+      # shipped binary: bolt.exe exports lua_getfenv, lua_setfenv, lua_objlen and
+      # lua_cpcall, all removed after 5.1, exports none of lua_rotate,
+      # lua_absindex or lua_isinteger, and carries the banners "Lua 5.1" and
+      # "LuaJIT 2.1.1716656478".
+      #
+      # This step used to run luac5.4, which ACCEPTS everything 5.1 accepts and
+      # more -- so it passed `//`, `~` and `&` in lua/detect/buffs.lua, all of
+      # them Lua 5.3 additions and all of them syntax errors on the host. The
+      # plugin stopped the instant it was enabled, and the only symptom was the
+      # enable toggle flipping itself back off. A checker more permissive than
+      # the runtime is worse than none: it converts a startup failure into
+      # confidence.
+      #
+      # `npm test` runs the Lua layer in a real VM (tests/lua/) but that VM is
+      # wasmoon, which is 5.4 -- so it has the same blind spot by construction.
+      # tests/lua/dialect.test.ts guards the dialect at source level for fast
+      # feedback; THIS is the authoritative check, and it covers the vendored
+      # submodules too.
+      - name: Install LuaJIT and zstd
+        run: sudo apt-get update && sudo apt-get install -y luajit zstd
+      - name: Byte-compile every Lua file with the dialect Bolt runs
+        run: |
+          luajit -v
+          find . -name '*.lua' -not -path './node_modules/*' -print0 \
+            | xargs -0 -n1 -I{} luajit -bl {} /dev/null
 
       - name: Package and describe the release
         id: package

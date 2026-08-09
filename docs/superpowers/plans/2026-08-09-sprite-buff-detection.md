@@ -6,7 +6,7 @@
 
 **Architecture:** Add a second detection path inside `lua/detect/buffs.lua`'s existing `M.onrender2d`. The outline sweep already runs there and records every buff/debuff outline quad; a second walk over the same batch offers the vendored module any textured image drawn at an outline's top-left. Identity for these comes from hashing the sprite's atlas pixels, since atlas rects are packed at runtime. New ids are additive, so no config migration.
 
-**Tech Stack:** Lua 5.4 (plugin), TypeScript + zod (wire), Preact (UI), vitest + wasmoon (tests).
+**Tech Stack:** Lua 5.1 / LuaJIT 2.1 (plugin host), TypeScript + zod (wire), Preact (UI), vitest + wasmoon (tests; note the test VM is 5.4 and so is more permissive than the host).
 
 ## Global Constraints
 

@@ -268,9 +268,24 @@ local SAMPLE_GRID = 8
 --- Cap on identities reported to the UI. A bar holds well under this.
 local MAX_IDENTITIES = 16
 
---- FNV-1a, 32-bit.
-local FNV_OFFSET = 2166136261
-local FNV_PRIME = 16777619
+--- Multiply-add hash constants.
+---
+--- NOT FNV-1a, WHICH IS WHAT THIS WAS AND WHY THE PLUGIN WOULD NOT START. FNV
+--- needs XOR, and Bolt runs LUAJIT -- Lua 5.1 -- where `~`, `&` and `//` are
+--- not operators at all but syntax errors. A syntax error here makes
+--- require("lua.detect.buffs") fail, main.lua raise at load, and Bolt stop the
+--- plugin the instant it is enabled. The test harness is wasmoon, which is Lua
+--- 5.4, so it compiled all of it without complaint. tests/lua/dialect.test.ts
+--- now holds that line.
+---
+--- The multiplier is deliberately small. Lua 5.1 has no integers -- every number
+--- is a double, exact only to 2^53 -- so the intermediate has to stay under it:
+--- hash < 2^32 times 31 is under 2^37, with room to spare. A multiplier the size
+--- of FNV's would overflow that and start silently rounding, which is a worse
+--- failure than the one it replaced because it would only bite occasionally.
+local HASH_SEED = 5381
+local HASH_MULT = 31
+local HASH_MOD = 4294967296
 
 --- Stable identity for a sprite-drawn buff, or nil if its pixels cannot be read.
 ---
@@ -294,7 +309,7 @@ local function spriteid(event, index)
   local cached = spriteids[rect]
   if cached ~= nil then return cached.id end
 
-  local hash = FNV_OFFSET
+  local hash = HASH_SEED
   local read = 0
   for gy = 0, SAMPLE_GRID - 1 do
     for gx = 0, SAMPLE_GRID - 1 do
@@ -304,9 +319,8 @@ local function spriteid(event, index)
       if ok and texel ~= nil and #texel >= 3 then
         read = read + 1
         for c = 1, 3 do
-          local byte = string.byte(texel, c) // 16
-          hash = (hash ~ byte) & 0xFFFFFFFF
-          hash = (hash * FNV_PRIME) & 0xFFFFFFFF
+          local byte = math.floor(string.byte(texel, c) / 16)
+          hash = ((hash * HASH_MULT) + byte) % HASH_MOD
         end
       end
     end
