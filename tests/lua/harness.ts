@@ -241,6 +241,59 @@ export function buffDraw(
 }
 
 /**
+ * A buff whose icon is a plain sprite, laid out the way the game draws one:
+ * icon, then its timer text, then the outline quads — all in ONE batch, with no
+ * icon event anywhere.
+ *
+ * This is the case `onrendericon` structurally cannot see. Bolt raises that
+ * event only for images it recognised as a rendered item model, so abilities,
+ * prayers and familiars produce nothing at all, and half a measured bar was
+ * unreachable because of it.
+ *
+ * The outline sits at the icon's exact top-left, which is both the equality the
+ * vendored module validates on and the filter the sprite path keys off.
+ */
+export function spriteBuff(opts: {
+  at: { x: number; y: number };
+  texture: string;
+  number?: number | null;
+  parens?: number | null;
+  isbuff?: boolean;
+  size?: number;
+  atlasX?: number;
+}): Render2dEvent {
+  const size = opts.size ?? 27;
+  const isbuff = opts.isbuff !== false;
+  const rgb: [number, number, number] = isbuff ? [90, 150, 25] : [204, 0, 0];
+  // EACH SPRITE NEEDS ITS OWN ATLAS RECT, and defaulting it to the bar position
+  // is what gives it one. Identity is cached by rect, so two fixtures sharing a
+  // rect come back with one id however different their pixels are — which would
+  // make an id test pass for the wrong reason and hide a hash that never looked
+  // at the texture at all.
+  const ax = opts.atlasX ?? opts.at.x;
+  const { x, y } = opts.at;
+  return {
+    kind: "render2d",
+    images: [
+      { ax, ay: 0, aw: size, ah: size, x, y, texture: opts.texture },
+      {
+        buff: {
+          valid: true,
+          number: opts.number ?? null,
+          parens: opts.parens ?? null,
+          isbuff,
+          at: [x, y],
+        },
+      },
+      { flat: rgb, x, y, aw: size, ah: 1 },
+      { flat: rgb, x, y: y + 1, aw: 1, ah: size - 2 },
+      { flat: rgb, x, y: y + size - 1, aw: size, ah: 1 },
+      { flat: rgb, x: x + size - 1, y: y + 1, aw: 1, ah: size - 2 },
+    ],
+  };
+}
+
+/**
  * The four action-bar resource levels and the colours that identify them.
  *
  * MEASURED FROM A LIVE CLIENT, NOT COPIED FROM THE DETECTOR. These are the

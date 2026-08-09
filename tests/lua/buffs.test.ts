@@ -617,4 +617,31 @@ describe("buff diagnostics", () => {
 
     plugin.close();
   });
+
+  /**
+   * COVERS THE FAKE HOST, NOT THE PLUGIN, and it earns its place.
+   *
+   * Sprite identity hashes pixels sampled across an icon. If the fake answered
+   * texturedata identically at every point — which it did — then sixty-four
+   * samples would read one value sixty-four times, every sprite would hash
+   * alike, and an identity test would pass just as happily against an
+   * implementation that never read a texture at all.
+   */
+  it("reads different bytes at different points of one texture", async () => {
+    const plugin = await loadPlugin();
+
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: [{ ax: 0, ay: 0, aw: 4, ah: 4, x: 0, y: 0, texture: "ABCDEFGHIJKLMNOP" }],
+      },
+    ]);
+
+    const a = plugin.eval(`return driver.lastevent:texturedata(0, 0, 4)`);
+    const b = plugin.eval(`return driver.lastevent:texturedata(1, 0, 4)`);
+    expect(a).toBe("ABCD");
+    expect(b).toBe("EFGH");
+
+    plugin.close();
+  });
 });

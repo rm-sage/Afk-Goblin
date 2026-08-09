@@ -96,13 +96,32 @@ local function render2devent(images)
   ---
   --- Resolved by which image's atlas rectangle CONTAINS the point, because
   --- callers sample a pixel offset into a bar they just found and several bars
-  --- share one batch. `rgb` is the convenient form; `texture` passes bytes
-  --- through untouched for anything that needs more than one pixel.
-  function E:texturedata(x, y)
+  --- share one batch.
+  ---
+  --- `texture` is addressed as a ROW-MAJOR RGBA BUFFER and wraps modulo its
+  --- length, so a fixture can supply a short pattern and still have two sample
+  --- points read differently. That difference is load-bearing: a fake answering
+  --- identically everywhere would let a sprite hash that samples sixty-four
+  --- points look exactly as good as one that never reads a texture at all, and
+  --- the test could not tell them apart.
+  ---
+  --- `rgb` keeps its flat behaviour -- it means "this image is all one colour",
+  --- which is what the action-bar fixtures rely on.
+  function E:texturedata(x, y, len)
+    len = len or 4
     for _, img in ipairs(images) do
       local ax, ay = img.ax or 0, img.ay or 0
       if x >= ax and x < ax + (img.aw or 0) and y >= ay and y < ay + (img.ah or 0) then
-        if img.texture ~= nil then return img.texture end
+        if img.texture ~= nil and #img.texture > 0 then
+          local tex = img.texture
+          local offset = ((((y - ay) * (img.aw or 0)) + (x - ax)) * 4) % #tex
+          local out = {}
+          for i = 0, len - 1 do
+            local at = ((offset + i) % #tex) + 1
+            out[#out + 1] = tex:sub(at, at)
+          end
+          return table.concat(out)
+        end
         if img.rgb ~= nil then
           return string.char(img.rgb[1] or 0, img.rgb[2] or 0, img.rgb[3] or 0, 255)
         end
@@ -260,7 +279,10 @@ function D.frame(spec, dtus)
     if event.kind == "icon" then
       fire("onrendericon", iconevent(event))
     else
-      fire("onrender2d", render2devent(event.images or {}))
+      -- Kept so a test can interrogate the event object itself, which is how the
+      -- fake host's own pixel addressing gets covered rather than assumed.
+      D.lastevent = render2devent(event.images or {})
+      fire("onrender2d", D.lastevent)
     end
   end
 
