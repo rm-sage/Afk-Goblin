@@ -432,9 +432,14 @@ local function byte255(c)
 end
 
 --- Record every buff/debuff outline box in this batch.
+--- Returns whether this batch contained any outline at all, which is what tells
+--- the sprite pass below whether walking the batch a second time could find
+--- anything. A live frame is around ninety batches and at most a couple of them
+--- draw the buff bar, so this declines the second walk almost every time.
 local function scanoutlines(event)
   local vertexcount = event:vertexcount()
   local verticesperimage = event:verticesperimage()
+  local found = false
 
   for i = 1, vertexcount, verticesperimage do
     -- An outline is a flat fill, which the modules identify by a nil uv.
@@ -446,12 +451,15 @@ local function scanoutlines(event)
         for _, o in ipairs(OUTLINE) do
           if rr == o.r and gg == o.g and bb == o.b then
             wipoutlines[string.format("%d,%d", x, y)] = o.isbuff
+            found = true
             break
           end
         end
       end
     end
   end
+
+  return found
 end
 
 --- An icon is about to be drawn. Remember what and where.
@@ -497,7 +505,8 @@ end
 --- an icon's timer text genuinely can arrive at any point in the tick — that is
 --- why buffs was exempted from the budget in the first place.
 function M.onrender2d(event, scanning)
-  if scanning ~= false then scanoutlines(event) end
+  local outlinedhere = false
+  if scanning ~= false then outlinedhere = scanoutlines(event) end
 
   local waiting = pending
   pending = {}
@@ -609,7 +618,16 @@ function M.onrender2d(event, scanning)
   -- the sweep above just filled, is what holds this to one parse attempt per
   -- buff on the bar rather than one per image per batch -- which was measured at
   -- 2,366 a frame and cost five to ten FPS.
-  if scanning == false then return end
+  --
+  -- GATED ON THIS BATCH HAVING DRAWN AN OUTLINE, which is what stops the second
+  -- walk from being a tax on every batch. A buff's icon, its text and its
+  -- outline arrive together -- that is the whole premise of the module's
+  -- same-batch contract -- so a batch with no outline cannot hold a buff icon,
+  -- and a live frame is around ninety batches of which at most a couple draw the
+  -- bar. Without this the sweep above and the walk below would both run on all
+  -- ninety, which is exactly the per-image cost main.lua's budget exists to
+  -- bound.
+  if scanning == false or not outlinedhere then return end
 
   local vertexcount = event:vertexcount()
   local verticesperimage = event:verticesperimage()
