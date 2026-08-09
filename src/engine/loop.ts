@@ -11,7 +11,31 @@ import {
   type TriggerState,
 } from "~/engine/types";
 
+/**
+ * The DETECTION cadence: how often Lua pushes a snapshot.
+ *
+ * Matches TICK_US in main.lua. Nothing on this side should assume it is also the
+ * rate at which rules are evaluated — see `EVAL_MS`.
+ */
 export const TICK_MS = 600;
+
+/**
+ * The EVALUATION cadence: how often the browser re-runs every alerter.
+ *
+ * Deliberately faster than TICK_MS, and decoupled from it. A progress bar is
+ * computed inside check(), so it only moves when step() runs — at 600ms the bars
+ * advanced in visible jumps even though the UI was already painting at 5fps.
+ *
+ * Evaluating between snapshots is sound because nothing here consumes a snapshot
+ * once-only. State is a LEVEL and re-reading it is free; chat lines and XP drops
+ * are events that drain, and a step that finds none leaves every alerter's
+ * triggered state untouched. The two things that could have misbehaved do not:
+ * AlarmScheduler is edge-triggered, so a repeat step emits no command at all, and
+ * speech is guarded by a per-alert "already spoken" set. No alerter module sets
+ * `ticks`, so the per-alerter cadence divisor is 1 everywhere and running the
+ * counter faster cannot skip a check.
+ */
+export const EVAL_MS = 100;
 
 export type ActiveAlerter = {
   config: AlerterBase;

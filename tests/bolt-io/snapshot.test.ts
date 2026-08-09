@@ -146,4 +146,45 @@ describe("SnapshotStore", () => {
 
     expect(store.characterName).toBeNull();
   });
+
+  /**
+   * `state.clickIdleMs` is what Lua measured when it BUILT the snapshot, and
+   * snapshots arrive on a 600ms tick — so read raw it is stale by up to a full
+   * tick. Both terms are durations, so adding the snapshot's own age is the
+   * correct value rather than a smoothing trick, and it is what lets an
+   * inactivity bar advance continuously between pushes.
+   */
+  it("brings idle timers up to date with the snapshot's age", () => {
+    let now = 1_000;
+    const store = new SnapshotStore(() => now);
+
+    const state = stateAt(1);
+    state.clickIdleMs = 4_000;
+    state.mouseIdleMs = 900;
+    store.accept(state);
+
+    expect(store.ageMs).toBe(0);
+    expect(store.idleMs).toBe(4_000);
+    expect(store.mouseIdleMs).toBe(900);
+
+    now += 450;
+    expect(store.ageMs).toBe(450);
+    expect(store.idleMs).toBe(4_450);
+    expect(store.mouseIdleMs).toBe(1_350);
+
+    // A fresh snapshot replaces the reading rather than adding to it.
+    const next = stateAt(2);
+    next.clickIdleMs = 5_000;
+    next.mouseIdleMs = 0;
+    store.accept(next);
+    expect(store.idleMs).toBe(5_000);
+    expect(store.mouseIdleMs).toBe(0);
+  });
+
+  it("reports no age and zero idle before the first snapshot", () => {
+    const store = new SnapshotStore(() => 5_000);
+    expect(store.ageMs).toBeNull();
+    expect(store.idleMs).toBe(0);
+    expect(store.mouseIdleMs).toBe(0);
+  });
 });

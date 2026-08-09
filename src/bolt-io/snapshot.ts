@@ -80,6 +80,38 @@ export class SnapshotStore {
     return this.#characterName;
   }
 
+  /** Milliseconds since the newest snapshot arrived, or null before the first. */
+  get ageMs(): number | null {
+    if (this.#lastMessageAt === null) return null;
+    return Math.max(0, this.now() - this.#lastMessageAt);
+  }
+
+  /**
+   * Milliseconds since the last click, brought up to date.
+   *
+   * `state.clickIdleMs` is what Lua measured when it built the snapshot, and
+   * snapshots arrive on a 600ms tick — so read raw it is stale by up to a full
+   * tick. Adding the snapshot's own age is not a smoothing trick, it is the
+   * correct value: both terms are durations, and no wall clock crosses the
+   * bridge to disagree about.
+   *
+   * It also makes an inactivity bar advance continuously rather than in 600ms
+   * jumps, which is the visible half of the same fix. 13 of the 108 alerts in the
+   * reference config are `inactive` and every one of them reads this.
+   */
+  get idleMs(): number {
+    const state = this.#state;
+    if (state === null) return 0;
+    return state.clickIdleMs + (this.ageMs ?? 0);
+  }
+
+  /** Milliseconds since the mouse last moved or scrolled, brought up to date. */
+  get mouseIdleMs(): number {
+    const state = this.#state;
+    if (state === null) return 0;
+    return state.mouseIdleMs + (this.ageMs ?? 0);
+  }
+
   /**
    * The most recent draw-stream report, or null if none has been asked for.
    *

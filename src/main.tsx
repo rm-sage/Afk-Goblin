@@ -6,7 +6,7 @@ import { AlarmScheduler } from "~/alerting/alarm";
 import { SoundPlayer } from "~/alerting/player";
 import { SoundLibrary, labelFromFilename, resolveSound } from "~/alerting/sound-library";
 import { shouldSuppress } from "~/alerting/taskbar";
-import { TICK_MS, TickLoop } from "~/engine/loop";
+import { EVAL_MS, TickLoop } from "~/engine/loop";
 import { Store } from "~/store/storage";
 import { z } from "zod";
 import { PresetSchema, SettingsSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
@@ -88,8 +88,11 @@ const view = new GameStateView(snapshot);
 
 const loop = new TickLoop({
   now: () => Date.now(),
-  idleMs: () => snapshot.state?.clickIdleMs ?? 0,
-  mouseIdleMs: () => snapshot.state?.mouseIdleMs ?? 0,
+  // Brought up to date with the snapshot's age rather than read raw, so an
+  // inactivity bar advances continuously between snapshots instead of jumping
+  // once a tick — and so the value is right rather than up to 600ms stale.
+  idleMs: () => snapshot.idleMs,
+  mouseIdleMs: () => snapshot.mouseIdleMs,
   connected: () => snapshot.connected,
   loggedIn: () => snapshot.state?.loggedIn ?? false,
   suppressWhenLoggedOut: () => settings.suppressWhenLoggedOut,
@@ -366,4 +369,4 @@ function handlePresetAction(action: PresetAction): void {
 }
 
 applyPreset();
-setInterval(tick, TICK_MS);
+setInterval(tick, EVAL_MS);
