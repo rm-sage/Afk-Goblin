@@ -225,6 +225,10 @@ bolt.onswapbuffers(function ()
     -- model raise an icon event. More outlines than icons is the count of buffs
     -- detection cannot see at all.
     buffOutlines = buffs.outlinecount(),
+    -- The atlas rect behind each sprite id. See M.identities: the hash is the
+    -- part of sprite detection taken on trust, and this is what would show an
+    -- id moving when it should not.
+    buffIdentities = buffs.identities(),
     barsRead = stats.seencount(),
     chatAnchors = chatdiag.anchors,
   }

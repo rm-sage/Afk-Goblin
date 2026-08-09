@@ -113,6 +113,7 @@ describe("decodePluginMessage", () => {
       buffPairAttempts: 0,
       buffUnpaired: [],
       buffOutlines: 0,
+      buffIdentities: [],
       barsRead: 0,
       chatAnchors: [],
     });

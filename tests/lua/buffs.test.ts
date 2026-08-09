@@ -834,6 +834,43 @@ describe("buff diagnostics", () => {
     plugin.close();
   });
 
+  /**
+   * The hash is the part of the design taken on trust rather than measured. If
+   * the atlas holds a separate variant per interface scale, an id changes when
+   * the user rescales and every alert bound to it stops matching — silently,
+   * because a buff that cannot be found reads exactly like one that is not
+   * active. Publishing the rect is what makes that visible instead.
+   */
+  it("reports the atlas rect each sprite id was derived from", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([spriteBuff({ at: { x: 1456, y: 990 }, texture: "traced", number: 60 })]);
+    tick(plugin);
+
+    const state = plugin.latest();
+    const ids = state?.diag.buffIdentities ?? [];
+    expect(ids).toHaveLength(1);
+    expect(ids[0]?.id).toBe(state?.buffs[0]?.id);
+    expect(ids[0]?.atlas).toBe("1456,0,27,27");
+    expect(ids[0]?.w).toBe(27);
+    expect(ids[0]?.h).toBe(27);
+
+    plugin.close();
+  });
+
+  it("reports no identities when nothing was found as a sprite", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame(buffDraw(2, 1344, { number: 27 }));
+    tick(plugin);
+
+    expect(plugin.latest()?.diag.buffIdentities).toEqual([]);
+
+    plugin.close();
+  });
+
   it("reads different bytes at different points of one texture", async () => {
     const plugin = await loadPlugin();
 

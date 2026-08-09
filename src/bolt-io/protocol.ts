@@ -188,6 +188,27 @@ export const DiagnosticsSchema = z.object({
    * that blind spot.
    */
   buffOutlines: z.number().int().nonnegative().default(0),
+  /**
+   * Sprite ids derived this session, with the atlas rectangle behind each.
+   *
+   * A sprite-drawn buff is identified by hashing its icon, because atlas rects
+   * are packed at runtime and do not survive a session. Whether the atlas holds
+   * one variant per sprite or one per interface scale has never been read out of
+   * a live draw stream — so this is the reading that would show an id changing
+   * when it should not, which would otherwise surface only as an alert that
+   * quietly stopped firing.
+   */
+  buffIdentities: z
+    .array(
+      z.object({
+        id: z.string(),
+        /** Atlas rectangle as "x,y,w,h". */
+        atlas: z.string().default(""),
+        w: z.number().default(0),
+        h: z.number().default(0),
+      }),
+    )
+    .default([]),
   /** How many of the four action-bar resource bars were read, out of four. */
   barsRead: z.number().int().nonnegative().default(0),
   /**
