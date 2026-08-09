@@ -32,7 +32,7 @@ The harness's `texturedata` resolves by which image's atlas rect contains the po
 **Interfaces:**
 - Produces: `spriteBuff(opts)` returning a `Render2dEvent` laying out icon → text → outline in one batch, and a fake `texturedata(x, y, len)` that addresses `texture` as a row-major RGBA buffer, wrapping modulo its length.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `tests/lua/buffs.test.ts`:
 
@@ -49,12 +49,12 @@ it("reads different bytes at different points of one texture", async () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "different points"`
 Expected: FAIL — both reads return the whole `texture` string, so they are equal (or `driver.lastevent` is nil).
 
-- [ ] **Step 3: Address the texture by position**
+- [x] **Step 3: Address the texture by position**
 
 In `tests/lua/driver.lua`, replace `E:texturedata`:
 
@@ -103,12 +103,12 @@ In `tests/lua/driver.lua`, inside the render2d dispatch, record the event so a t
     D.lastevent = event
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "different points"`
 Expected: PASS
 
-- [ ] **Step 5: Add the sprite-buff fixture helper**
+- [x] **Step 5: Add the sprite-buff fixture helper**
 
 In `tests/lua/harness.ts`, after `buffDraw`:
 
@@ -158,7 +158,7 @@ export function spriteBuff(opts: {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/lua/driver.lua tests/lua/harness.ts tests/lua/buffs.test.ts
@@ -177,7 +177,7 @@ git commit -m "Give the fake host per-pixel textures and a sprite-buff fixture"
 - Consumes: `spriteBuff` from Task 1.
 - Produces: sprite-found buffs appear in the state snapshot's `buffs`/`debuffs`. Internal helper `outlineat(x, y)` returning `true`/`false`/`nil`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it("reads a buff drawn as a sprite, with no icon event at all", async () => {
@@ -194,12 +194,12 @@ it("reads a buff drawn as a sprite, with no icon event at all", async () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "drawn as a sprite"`
 Expected: FAIL — `buffs.length` is 0. Nothing reaches `pending` without an icon event.
 
-- [ ] **Step 3: Add the sprite pass**
+- [x] **Step 3: Add the sprite pass**
 
 In `lua/detect/buffs.lua`, add above `M.onrender2d`:
 
@@ -317,12 +317,12 @@ to
           local slot = { id = icon.id, x = icon.x, source = "icon" }
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "drawn as a sprite"`
 Expected: PASS
 
-- [ ] **Step 5: Add the cost-bound and no-outline tests**
+- [x] **Step 5: Add the cost-bound and no-outline tests**
 
 ```ts
 it("never offers the module an image with no outline at its position", async () => {
@@ -385,12 +385,12 @@ it("publishes a sprite buff whose timer will not parse, with no timeLeft", async
 });
 ```
 
-- [ ] **Step 6: Run the whole file, then the suite**
+- [x] **Step 6: Run the whole file, then the suite**
 
 Run: `npx vitest run tests/lua/buffs.test.ts` then `npm test`
 Expected: all PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lua/detect/buffs.lua tests/lua/buffs.test.ts
@@ -408,7 +408,7 @@ git commit -m "Detect buffs drawn as sprites, which raise no icon event"
 **Interfaces:**
 - Produces: ids of the form `s:%08x`, cached per atlas rect for the session.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it("gives two different sprites two different ids, and one sprite one id", async () => {
@@ -428,12 +428,12 @@ it("gives two different sprites two different ids, and one sprite one id", async
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "two different ids"`
 Expected: FAIL — the placeholder yields `s:100,0,27,27` for both, so the set has one entry and the regex does not match.
 
-- [ ] **Step 3: Replace the placeholder**
+- [x] **Step 3: Replace the placeholder**
 
 ```lua
 --- Sprite identity cache, keyed by atlas rectangle.
@@ -503,12 +503,12 @@ local function spriteid(event, index)
 end
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "two different ids"`
 Expected: PASS
 
-- [ ] **Step 5: Prove the id is stable across ticks**
+- [x] **Step 5: Prove the id is stable across ticks**
 
 ```ts
 it("keeps a sprite's id the same across ticks", async () => {
@@ -524,12 +524,12 @@ it("keeps a sprite's id the same across ticks", async () => {
 });
 ```
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `npm test`
 Expected: all PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lua/detect/buffs.lua tests/lua/buffs.test.ts
@@ -548,7 +548,7 @@ git commit -m "Identify a sprite-drawn buff by hashing its atlas pixels"
 **Interfaces:**
 - Produces: `BuffSlot.slot: number` (1-based, left-to-right across buffs and debuffs together; 0 when unknown) and `BuffSlot.source: "icon" | "sprite" | "unknown"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/lua/buffs.test.ts`:
 
@@ -582,12 +582,12 @@ it("defaults slot and source on a buff from an older plugin", () => {
 });
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "left to right" tests/bolt-io/protocol.test.ts -t "older plugin"`
 Expected: FAIL — `slot` and `source` do not exist.
 
-- [ ] **Step 3: Add the wire fields**
+- [x] **Step 3: Add the wire fields**
 
 In `src/bolt-io/protocol.ts`, inside `BuffSlotSchema`, after `stacks`:
 
@@ -626,17 +626,17 @@ In `lua/detect/buffs.lua`, in `M.request()`, replace `buffs, debuffs = wipbuffs,
   buffs, debuffs = wipbuffs, wipdebuffs
 ```
 
-- [ ] **Step 4: Run them and watch them pass**
+- [x] **Step 4: Run them and watch them pass**
 
 Run: `npx vitest run tests/lua/buffs.test.ts tests/bolt-io/protocol.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Run the suite and typecheck**
+- [x] **Step 5: Run the suite and typecheck**
 
 Run: `npm run typecheck && npm test`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/bolt-io/protocol.ts lua/detect/buffs.lua tests/lua/buffs.test.ts tests/bolt-io/protocol.test.ts
@@ -658,7 +658,7 @@ The spec calls the hash the unverified part of the design and requires it to say
 **Interfaces:**
 - Produces: `M.identities()` returning a list of `{ id, atlas, w, h }`; `diag.buffIdentities` on the wire.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it("reports the atlas rect each sprite id was derived from", async () => {
@@ -676,12 +676,12 @@ it("reports the atlas rect each sprite id was derived from", async () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "atlas rect each sprite"`
 Expected: FAIL — `buffIdentities` is undefined.
 
-- [ ] **Step 3: Publish the identities**
+- [x] **Step 3: Publish the identities**
 
 In `lua/detect/buffs.lua`, add this **below** the `spriteids` table from Task 3 — a Lua local is not an upvalue of a function declared before it, so placing this above `spriteids` silently reads a global `nil` and returns an empty list forever:
 
@@ -738,17 +738,17 @@ In `src/bolt-io/protocol.ts`, inside `DiagnosticsSchema`, after `buffOutlines`:
     .default([]),
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/lua/buffs.test.ts -t "atlas rect each sprite"`
 Expected: PASS
 
-- [ ] **Step 5: Run the suite and typecheck**
+- [x] **Step 5: Run the suite and typecheck**
 
 Run: `npm run typecheck && npm test`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lua/detect/buffs.lua main.lua src/bolt-io/protocol.ts tests/lua/buffs.test.ts
@@ -768,7 +768,7 @@ git commit -m "Report the atlas rect behind each sprite buff id"
 - Consumes: `BuffSlot.slot`, `BuffSlot.source`, `Diagnostics.buffIdentities`.
 - Produces: `orderBuffsForPicker(buffs)` exported from `src/ui/CapturePickers.tsx`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/ui/buff-picker.test.ts`:
 
@@ -801,12 +801,12 @@ describe("orderBuffsForPicker", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `npx vitest run tests/ui/buff-picker.test.ts`
 Expected: FAIL — `orderBuffsForPicker` is not exported.
 
-- [ ] **Step 3: Implement and use it**
+- [x] **Step 3: Implement and use it**
 
 In `src/ui/CapturePickers.tsx`, above `BuffPicker`:
 
@@ -886,17 +886,17 @@ And after the unpaired list, add the identity readout:
       ) : null}
 ```
 
-- [ ] **Step 4: Run it and watch it pass**
+- [x] **Step 4: Run it and watch it pass**
 
 Run: `npx vitest run tests/ui/buff-picker.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Run the suite and typecheck**
+- [x] **Step 5: Run the suite and typecheck**
 
 Run: `npm run typecheck && npm test`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ui/CapturePickers.tsx src/ui/App.tsx tests/ui/buff-picker.test.ts
@@ -914,7 +914,7 @@ git commit -m "Order the buff picker by bar position and show the detection spli
 - Modify: `README.md` (status paragraph)
 - Modify: `docs/superpowers/plans/2026-08-09-sprite-buff-detection.md` (tick the boxes)
 
-- [ ] **Step 1: Rewrite the blind-spot section of the header**
+- [x] **Step 1: Rewrite the blind-spot section of the header**
 
 Replace the "HALF THIS BAR IS INVISIBLE" paragraph with:
 
@@ -941,7 +941,7 @@ Replace the "HALF THIS BAR IS INVISIBLE" paragraph with:
 -- needed. See docs/superpowers/specs/2026-08-09-sprite-buff-detection-design.md.
 ```
 
-- [ ] **Step 2: Update the README**
+- [x] **Step 2: Update the README**
 
 In `## What's different`, replace the "Immutable buff templates" bullet's neighbours by adding this bullet after "All chatboxes monitored":
 
@@ -958,7 +958,7 @@ In `## Feature parity`, change the `buffs` row to:
 | `buffs` | ✅ item-model and sprite-drawn |
 ```
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run: `npm run ci`
 Expected: typecheck, tests and build all PASS

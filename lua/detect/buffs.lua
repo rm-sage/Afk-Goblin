@@ -32,19 +32,30 @@
 --    and modules/buffs/buffs.lua:100 returns a bare false. Hence the outline
 --    fallback below: the timer is lost, the buff is not.
 --
--- 2. HALF THIS BAR IS INVISIBLE, and no amount of pairing work reaches it. Bolt
---    raises onrendericon only for images it recognised as a rendered 3D item
---    model -- Bolt's gl.c captures model data only at the 64x64 item-icon render
---    target, and splits an icon event out of a batch only when a quad's atlas
---    rect matches one it captured. Potions, food and charged items qualify;
---    abilities, prayers, auras and familiars are plain authored sprites and
---    raise nothing at all. Since `pending` is built from onrendericon and
---    nothing else, those buffs cannot be detected however well this file works.
---    `M.outlinecount` measures the gap, because every buff is outlined whether
---    or not it raises an icon. Closing it means detecting from render2d and
---    taking identity from the sprite's PIXELS -- atlas rects are packed at
---    runtime and are not stable between sessions -- which changes the id format
---    and needs a config migration. That is a design change, not a patch.
+-- 2. HALF THAT BAR RAISED NO ICON EVENT, WHICH IS WHY THERE ARE TWO PATHS.
+--    Bolt raises onrendericon only for images it recognised as a rendered 3D
+--    item model -- its gl.c captures model data only at the 64x64 item-icon
+--    render target, and splits an icon event out of a batch only when a quad's
+--    atlas rect matches one it captured. Potions, food and charged items
+--    qualify; abilities, prayers and familiars are plain authored sprites and
+--    raise nothing at all. `pending` is built from onrendericon and nothing
+--    else, so those buffs were unreachable however well the pairing worked.
+--
+--    The sprite pass at the bottom of M.onrender2d closes that, added
+--    2026-08-09: it offers the module any textured image drawn at an outline's
+--    exact top-left. The two paths see DISJOINT sets -- Bolt removes a
+--    recognised item-model quad from the batch to raise its icon event -- so
+--    both are needed and neither is redundant. `M.outlinecount` still measures
+--    what is left, but a difference there is now a gap to report rather than a
+--    limitation to live with.
+--
+--    Identity differs between them. An icon carries a model signature; a sprite
+--    has only its pixels, because atlas rects are packed at runtime and do not
+--    survive a session. Sprite ids are therefore a hash of the icon, prefixed
+--    `s:`, and are ADDITIVE -- every existing models:verts alert kept working
+--    and no config migration was needed, which is a departure from what this
+--    header used to predict. See
+--    docs/superpowers/specs/2026-08-09-sprite-buff-detection-design.md.
 --
 -- READING SPANS THE WHOLE TICK, NOT ONE SAMPLED FRAME.
 --

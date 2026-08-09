@@ -53,6 +53,11 @@ for the full analysis.
   after consecutive failed reads. Reader health is visible per-alert rather than buried.
 - **All chatboxes monitored** — the underlying library already detects every open chatbox but only
   ever reads one. AFK Goblin reads them all, at the cost of a single screen capture per tick.
+- **The whole buff bar is read**, not just the part the game announces. A plugin is told about a
+  buff only when its icon is a rendered item model — potions, food, charged items — and hears
+  nothing at all for abilities, prayers and familiars, which are drawn as plain sprites. Half a
+  measured bar was invisible for that reason alone. Those are now found by reading the draw stream
+  directly, so any of them can be watched.
 - **Immutable buff templates** with relative-coverage scoring, so sparse templates aren't
   structurally disadvantaged and can't decay.
 - **No backend.** Custom sounds and text-to-speech run locally; nothing calls out to a server.
@@ -69,7 +74,7 @@ settings, and quick-add premades.
 | `inactive` | ✅ |
 | `chat` | ✅ |
 | `actionbar` | ✅ |
-| `buffs` | ✅ |
+| `buffs` | ✅ item-model and sprite-drawn |
 | `xpcounter` | ✅ |
 | `bigxp` | ✅ |
 | `clockbased` | ✅ |
