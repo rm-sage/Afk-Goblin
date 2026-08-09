@@ -305,22 +305,36 @@ function DetectionPanel({
         <dd>{diag.buffIconDraws}</dd>
         <dt>Buffs on the bar</dt>
         <dd>{diag.buffOutlines}</dd>
+        {/*
+          WHICH PATH FOUND EACH BUFF. The game announces a buff to plugins only
+          when its icon is a rendered item model; everything else is a plain
+          sprite and is found by reading the draw stream directly. The
+          outlines-minus-buffs difference below gives the size of what is still
+          missed, but only in aggregate — this says it per buff, which is what
+          turns "detection is not seeing my familiar" into a specific claim.
+        */}
+        <dt>Found via</dt>
+        <dd>
+          {buffs.concat(debuffs).length === 0
+            ? "—"
+            : `${buffs.concat(debuffs).filter((b) => b.source === "icon").length} as item models, ` +
+              `${buffs.concat(debuffs).filter((b) => b.source === "sprite").length} as sprites`}
+        </dd>
         <dt>Pairing attempts</dt>
         <dd>{diag.buffPairAttempts}</dd>
       </dl>
       {/*
-        Every buff on the bar is outlined, but Bolt raises an icon event only for
-        images it recognised as a rendered 3D item model. A buff drawn from a
-        plain authored sprite therefore raises none and is invisible to detection
-        no matter how well pairing works — so this difference is the size of the
-        blind spot, and it is a bigger problem than any unread timer.
+        Every buff on the bar is outlined, so this difference is what is still
+        missed after BOTH paths have run — the icon path for buffs the game
+        announces, and the sprite path for the ones it does not. It used to be
+        the size of a structural blind spot; now a difference here is a gap
+        worth reporting rather than a known limitation.
       */}
       {diag.buffOutlines > 0 && diag.buffOutlines > buffs.length + debuffs.length ? (
         <p class="diag__note">
           {diag.buffOutlines} buffs are on the bar but only {buffs.length + debuffs.length} can be
-          seen. The game announces a buff to plugins only when its icon is a rendered item model —
-          potions, food, charged items. The rest are drawn as plain sprites, and nothing reaches the
-          plugin for those at all, so they cannot be alerted on yet.
+          seen. Both detection paths have run, so this is a gap rather than a limitation — if a buff
+          is plainly showing and missing here, that is worth reporting.
         </p>
       ) : null}
       {diag.buffUnpaired.length > 0 ? (
@@ -342,6 +356,23 @@ function DetectionPanel({
             </li>
           ))}
         </ul>
+      ) : null}
+      {diag.buffIdentities.length > 0 ? (
+        <>
+          <p class="diag__note">
+            Sprite-drawn buffs are identified by hashing their icon, because the game repacks its
+            texture atlas every session. If an id here changes without the buff changing — after an
+            interface rescale, say — every alert bound to it stops matching, and this is the one
+            place that would show it.
+          </p>
+          <ul class="diag__list">
+            {diag.buffIdentities.map((s) => (
+              <li key={s.id}>
+                {s.id} — atlas {s.atlas} ({s.w}×{s.h})
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
       <p class="diag__note">
         “Icons drawn” counts every icon the game drew, inventory included — not just buff icons. It is here to

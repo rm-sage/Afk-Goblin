@@ -52,6 +52,26 @@ export type BuffPickerProps = {
  * a real limitation, and the dialog says so rather than showing an empty list
  * with no explanation.
  */
+/**
+ * Buffs in the order they sit on the bar, left to right.
+ *
+ * Ids are opaque by construction — a model signature, or a hash of the icon's
+ * pixels — so position is the only handle a person has on which entry is which.
+ * Sorting the list to match the screen is what makes "the third one along"
+ * usable as an instruction.
+ *
+ * Slot 0 means the position is unknown: an older plugin, or a buff whose x was
+ * never read. Those go LAST, because sorting them numerically would float them
+ * to the top and claim they are leftmost — a confident answer to a question that
+ * has none.
+ */
+export function orderBuffsForPicker(buffs: readonly BuffSlot[]): BuffSlot[] {
+  return [...buffs].sort((a, b) => {
+    if (a.slot === 0 || b.slot === 0) return (a.slot === 0 ? 1 : 0) - (b.slot === 0 ? 1 : 0);
+    return a.slot - b.slot;
+  });
+}
+
 export function BuffPicker({
   open,
   isDebuff,
@@ -75,9 +95,9 @@ export function BuffPicker({
     <dialog ref={ref} onCancel={onClose}>
       <h2>Pick a {what}</h2>
       <p class="fld__help">
-        Showing the {what}s active right now, listed by what they read on the bar. Apply the one you
-        want to watch, then pick it here — it only needs to be active while you choose it, not
-        afterwards. Name the alert itself to remember which is which.
+        Showing the {what}s active right now, in the order they sit on your bar — #1 is the
+        leftmost. Apply the one you want to watch, then pick it here; it only needs to be active
+        while you choose it, not afterwards. Name the alert itself to remember which is which.
       </p>
 
       {buffs.length === 0 ? (
@@ -86,17 +106,19 @@ export function BuffPicker({
           {iconDraws === 0 ? (
             <>
               {" "}
-              <strong>The plugin is not being told about any icon draws at all</strong> — so no {what}{" "}
-              can appear here however many are on your bar. That is a detection bug rather than an
-              empty bar, and worth reporting.
+              <strong>The plugin is not being told about any icon draws either</strong> — which is
+              normal if nothing on your bar is a potion or a charged item, since everything else is
+              found by reading the screen instead. Open the detection panel if a {what} is showing
+              and still missing here.
             </>
           ) : null}
         </p>
       ) : (
         <ul class="issues">
-          {buffs.map((b) => (
+          {orderBuffsForPicker(buffs).map((b) => (
             <li key={b.id}>
               <button class="btn btn--ghost" onClick={() => onPick(b.id)}>
+                {b.slot > 0 ? `#${b.slot} on the bar — ` : ""}
                 {describeBuff(b)}
                 <span style="color: #888"> ({b.id})</span>
               </button>
