@@ -201,6 +201,11 @@ function M.onrender2d(event, scanning)
 
   local sum = 0
   local read = 0
+  -- COLLECTED PER BATCH AND ASSIGNED WHOLE, not appended to. The counter is
+  -- redrawn on every frame of the tick, so appending made the diagnostics report a
+  -- multiple of the real row count and then saturate at the cap -- a panel meant to
+  -- expose a misread was itself misreading.
+  local cellsread = {}
 
   for _, row in ipairs(rows) do
     -- Leftmost first, so "the first numeric run" means the leftmost one.
@@ -242,11 +247,19 @@ function M.onrender2d(event, scanning)
       read = read + 1
       sum = sum + value
       if wascoarse then wipcoarse = true end
-      if #wipcells < MAX_ROWS then wipcells[#wipcells + 1] = cell end
+      if #cellsread < MAX_ROWS then cellsread[#cellsread + 1] = cell end
     end
   end
 
   if read == 0 then return end
+
+  -- A TRUNCATED TABLE UNDERCOUNTS THE SUM, so it is refused rather than published.
+  -- The cap exists to bound a pathological batch, not to express a belief about how
+  -- many rows a counter has -- and a total missing a row looks exactly like a real
+  -- one to an alerter that only diffs it.
+  if #rows >= MAX_ROWS then return end
+
+  wipcells = cellsread
 
   -- ABBREVIATED CELLS ARE NOT USED. "37.1M" is a real reading but only moves on a
   -- gain of tens of thousands, so an inactivity alert built on it would fire while

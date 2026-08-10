@@ -93,6 +93,11 @@ export const buffsAlerter = defineAlerter<BuffVars>({
         }
 
         if (!ctx.connected) {
+          // The countdown anchor is dropped with the connection. Kept across a
+          // disconnect, a buff re-applied afterwards that happens to read the same
+          // number looked like one that had been running the whole time, so the
+          // smoothing subtracted the elapsed wall-clock and the alert fired at once.
+          lastReadValue = -1;
           return { triggered: false, bar: 0, functional: false };
         }
 

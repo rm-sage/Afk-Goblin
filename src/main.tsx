@@ -156,7 +156,12 @@ function dispatchAlerts(): void {
   // while suppression still considered you active -- holding the alarm late, or
   // worse, straddling the boundary mid-alarm and emitting stop then play, which
   // restarts the tone from the beginning as an audible stutter.
-  const quiet = shouldSuppress(settings.activeSuppress, snapshot.idleMs, focused);
+  //
+  // Gated on being connected, because `idleMs` is 0 before the first snapshot and
+  // a zero reads as "you just clicked" — so with activeSuppress on, every alarm was
+  // silenced while the plugin had never reported at all.
+  const quiet =
+    snapshot.connected && shouldSuppress(settings.activeSuppress, snapshot.idleMs, focused);
   const suppressed = settings.muted || quiet;
   const tooltips: string[] = [];
 
