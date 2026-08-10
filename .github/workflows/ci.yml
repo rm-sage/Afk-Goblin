@@ -57,8 +57,14 @@ jobs:
       - name: Byte-compile every Lua file with the dialect Bolt runs
         run: |
           luajit -v
-          find . -name '*.lua' -not -path './node_modules/*' -print0 \
-            | xargs -0 -n1 -I{} luajit -bl {} /dev/null
+          status=0
+          while IFS= read -r -d '' f; do
+            if ! luajit -bl "$f" /dev/null; then
+              echo "::error file=$f::not valid Lua 5.1 / LuaJIT — see tests/lua/dialect.test.ts"
+              status=1
+            fi
+          done < <(find . -name '*.lua' -not -path './node_modules/*' -print0)
+          exit $status
 
       - name: Package and describe the release
         id: package
