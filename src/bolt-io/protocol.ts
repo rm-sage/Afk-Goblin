@@ -253,6 +253,18 @@ export const DiagnosticsSchema = z.object({
    */
   xpSuspect: z.boolean().default(false),
   /**
+   * The three candidate signals for "is the player actually in game".
+   *
+   * Exiting to the lobby fired every inactivity alert instead of holding them.
+   * The gate is wired correctly and defaults to enabled, so the signal it reads is
+   * what is wrong: `loginHasId` is what it currently uses, and that was only ever
+   * confirmed to be false BEFORE FIRST LOGIN. Reported rather than acted on,
+   * because a wrong "logged out" silences everything.
+   */
+  loginHasId: z.boolean().default(false),
+  loginHasName: z.boolean().default(false),
+  loginInWorld: z.boolean().default(false),
+  /**
    * Where each chat anchor candidate was, and what became of it.
    *
    * "Found 2, reading 1" is ambiguous on its own: an 11x11 image is a loose

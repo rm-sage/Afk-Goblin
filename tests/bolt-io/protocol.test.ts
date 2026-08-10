@@ -119,6 +119,9 @@ describe("decodePluginMessage", () => {
       xpCells: [],
       xpCoarse: false,
       xpSuspect: false,
+      loginHasId: false,
+      loginHasName: false,
+      loginInWorld: false,
       chatAnchors: [],
     });
   });

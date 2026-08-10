@@ -381,6 +381,21 @@ function DetectionPanel({
         answer one question: whether the plugin is being told about icons at all.
       </p>
 
+      <h3 class="diag__head">In game</h3>
+      <p class="diag__verdict diag__verdict--ok">
+        Alerts are held while you are logged out or in the lobby, and that is decided by the first
+        signal below. If it reads yes while you are sitting in the lobby, that is the bug — the other
+        two are candidates to replace it.
+      </p>
+      <dl class="diag__grid">
+        <dt>Character id present (used now)</dt>
+        <dd>{diag.loginHasId ? "yes" : "no"}</dd>
+        <dt>Character name present</dt>
+        <dd>{diag.loginHasName ? "yes" : "no"}</dd>
+        <dt>Player has a world position</dt>
+        <dd>{diag.loginInWorld ? "yes" : "no"}</dd>
+      </dl>
+
       <h3 class="diag__head">XP</h3>
       <p class={`diag__verdict diag__verdict--${diag.xpCounterFound && !diag.xpCoarse ? "ok" : "bad"}`}>
         {!diag.xpCounterFound

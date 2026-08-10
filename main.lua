@@ -156,6 +156,24 @@ local function characterid()
   return nonempty(bolt.characterid())
 end
 
+--- Whether the client reports a player standing somewhere in the world.
+---
+--- A CANDIDATE LOGIN SIGNAL, reported rather than acted on. Exiting to the lobby
+--- fired every inactivity alert instead of holding them: the gate is wired
+--- correctly and defaults to enabled, so the SIGNAL is what is wrong.
+--- `characterid()` was only ever confirmed to be EMPTY BEFORE FIRST LOGIN, and it
+--- is very likely still populated in the lobby, so the gate never engages.
+---
+--- The stricter gate is not guessed here, because a wrong "logged out" silences
+--- everything, which is this project's worst outcome. All three candidates go to
+--- the panel instead, and one visit to the lobby says which actually flips.
+local function inworld()
+  local ok, x, y, z = pcall(bolt.playerposition)
+  if not ok or x == nil then return false end
+  -- The lobby has no world position; the origin is a plausible "nothing" reading.
+  return not (x == 0 and y == 0 and z == 0)
+end
+
 --- The character's display name, or nil in the lobby.
 --
 -- Reported on every snapshot rather than on the startup handshake, because the
@@ -274,6 +292,11 @@ bolt.onswapbuffers(function ()
     xpCells = xpdiag.cells,
     xpCoarse = xpdiag.coarse,
     xpSuspect = xpdiag.suspect,
+    -- The three candidate login signals, so the lobby can be diagnosed from one
+    -- visit rather than guessed at. See `inworld`.
+    loginHasId = characterid() ~= nil,
+    loginHasName = charactername() ~= nil,
+    loginInWorld = inworld(),
   }
 
   link:send({
