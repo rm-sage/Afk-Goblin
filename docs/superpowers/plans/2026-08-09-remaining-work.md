@@ -29,15 +29,25 @@ about which alerts anyone actually uses.
 
 | # | Work | Alerts it affects | Gated on |
 | --- | --- | --- | --- |
-| ~~1~~ | ~~Chat colours over the bridge~~ | **71** (precision) | **done** — needs in-game confirmation |
-| ~~2~~ | ~~XP drop detection → `xpcounter`, `bigxp`~~ | **1 of 4** | **done for Total** — see below |
-| 2b | Attribute a drop to its skill by hashing the icon | 3 | a live reading; only if Total proves insufficient |
-| 3 | Taskbar countdown / tooltip surface | 0 (a dropped feature, and a false README claim) | nothing |
-| 4 | `craftmenu` | 1 | nothing |
-| 5 | Model highlighting — enriched springs | 0 | two recorded colony sessions |
-| 6 | `dialogtextsimple`, `targetdeath`, `drops` detection | 0 | nothing |
-| 7 | `sheathe`, `castlewars`, `fightkiln`, `summoning`, `necroritual` | 0 (1 for `sheathe`) | a reader each |
-| 8 | Release and install path verification | — | a push, then a clean install |
+| ~~1~~ | ~~Chat colours over the bridge~~ | **71** (precision) | **done** — still unconfirmed in game |
+| ~~2~~ | ~~XP, from the counter interface~~ | **4** | **done, confirmed in game** — Total only |
+| ~~3~~ | ~~Smooth progress bars, un-stale the idle timers~~ | 13 (`inactive`) | **done** |
+| 4 | Release and install path verification | — | **a push**, then a clean install |
+| 5 | Attribute an XP row to its skill by hashing the icon | 3 | a live reading — and probably not worth it, see below |
+| 6 | `craftmenu` | 1 | a live reading of the crafting interface |
+| 7 | In-game countdown surface (replaces the dropped taskbar one) | 0 | a design decision |
+| 8 | Model highlighting — enriched springs | 0 | two recorded colony sessions |
+| 9 | `dialogtextsimple`, `targetdeath`, `drops` detection | 0 | a live reading each; `drops` also needs the event reshape |
+| 10 | `sheathe`, `castlewars`, `fightkiln`, `summoning`, `necroritual` | 0 (1 for `sheathe`) | a reader each |
+
+**The reference config is now functionally covered.** 106 of its 108 alerts work — chat, inactivity,
+the action bar, buffs and XP are all confirmed against a live client. The two that are not are
+`craftmenu` and `sheathe`, one alert each. So everything below the release row is either polish, a new
+capability, or work for alerts nobody in this config has.
+
+That changes what "highest value" means: the biggest risk to this project is no longer a missing
+feature, it is that **CI has never run on any of it** — 30 commits, including a LuaJIT byte-compile
+step added specifically because a green test suite failed to catch a plugin that would not start.
 
 Note the ordering departs from the migration spec, which put model highlighting at step 6 ahead of
 XP. That ordering was by *motivation* — highlighting is why the migration happened. This one is by
@@ -61,10 +71,17 @@ There was never a glyph blocker. The vendored chat module already carries `+`, e
 `k` and `m` across all seven font sizes, because since the 2026-01-19 interface update most game text
 uses the chat font. `lua/detect/xp.lua` reads drops with the same lookup chat uses.
 
-**Total only.** A drop is a skill icon beside a number, and the number cannot say which skill it is.
-Everything accumulates under `tot`; an alert naming a specific skill reports itself unreadable rather
-than quietly watching everything, and the skill field explains why. While you are doing one activity
-Total is equivalent, which is why 2b is speculative rather than scheduled.
+**Total only, and the follow-up is probably not worth building.** Each counter row carries a skill
+icon, and identifying it means hashing the sprite — the technique sprite buffs already use — plus a
+one-time picker binding each hash to one of AfkWarden''s three-letter codes. But the user would have to
+do a binding step either way, and switching three alerts to Total is strictly less work than binding
+three icons. Since Total is equivalent while doing a single activity, per-skill buys accuracy nobody
+has asked for. Left in the table as a known option, not a plan.
+
+**Superseded: reading the floating "+N" drops.** It worked but lagged about five seconds, because a
+drop is redrawn while it fades and so was counted again on every tick until it vanished. Confirmed in
+game as killing the feature for time-sensitive activities. Deduping across ticks was never available —
+two genuine identical drops would collapse and the alert would fire DURING activity.
 
 Two guards against reading ordinary text as XP, both because a false drop resets an inactivity timer
 and *delays* the alert — the failure direction that matters: only a `+` opens a run and the run admits
