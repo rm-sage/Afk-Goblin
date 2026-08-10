@@ -256,6 +256,11 @@ local MAX_UNPAIRED = 12
 --- assumed.
 local wipclaimed = {}
 
+--- Sprite buffs whose outline was found but whose timer text would not parse,
+--- keyed by position. Promoted in M.request if nothing claimed the position by the
+--- end of the tick. See the sprite pass.
+local wipcandidates = {}
+
 --- Whether an outline box was drawn at exactly this position this tick, and if
 --- so whether it was a buff. nil when there was none.
 local function outlineat(x, y)
@@ -354,6 +359,26 @@ end
 --- diagnostic counters that were supposed to explain the empty list were zeroed
 --- by the very same call.
 function M.request()
+  -- Promote sprite buffs whose outline was found but whose timer would not parse.
+  --
+  -- Deferred to here so a real parse anywhere in the tick wins: a glyph can
+  -- coincidentally start at an outline's corner, and only a position still
+  -- unclaimed at the end of the tick is a buff nothing could read. Published with
+  -- no timeLeft, exactly as the icon path does -- src/alerters/buffs.ts turns that
+  -- into "cannot see" rather than a confident expiry.
+  for key, candidate in pairs(wipcandidates) do
+    if not wipclaimed[key] and not seen[candidate.id] then
+      seen[candidate.id] = true
+      wipparsed = wipparsed + 1
+      local slot = { id = candidate.id, x = candidate.x, source = "sprite" }
+      if candidate.isbuff then
+        wipbuffs[#wipbuffs + 1] = slot
+      else
+        wipdebuffs[#wipdebuffs + 1] = slot
+      end
+    end
+  end
+
   -- Numbered across BOTH lists before publishing, because buffs and debuffs
   -- share one bar and the picker's "third along" has to mean third on screen
   -- rather than third of its own kind.
@@ -407,6 +432,7 @@ function M.request()
   wipunpairedseen = {}
   wipoutlines = {}
   wipclaimed = {}
+  wipcandidates = {}
   pending = {}
 end
 
@@ -700,6 +726,26 @@ function M.onrender2d(event, scanning)
               else
                 wipdebuffs[#wipdebuffs + 1] = slot
               end
+            end
+          else
+            -- THE TIMER IS UNREADABLE, THE BUFF IS NOT -- the same conclusion the
+            -- icon path reaches above, and the sprite path used to drop the buff
+            -- outright instead. It was absent from buffs, from debuffs, and from
+            -- buffUnpaired (which only the icon loop feeds), so the only trace was
+            -- a silent outlines-greater-than-read discrepancy.
+            --
+            -- The trigger is documented in this very file: the vendored module
+            -- declares k = 1000 but no glyph in either font table maps to 'k', so
+            -- any k-abbreviated count is unparseable -- and the measured bar
+            -- already had a "2K" buff on it.
+            --
+            -- DEFERRED TO M.request RATHER THAN PUBLISHED HERE, because a glyph can
+            -- coincidentally start at an outline's corner. A real parse later in
+            -- the tick claims the position, and only positions still unclaimed at
+            -- the end of the tick are promoted.
+            local id = spriteid(event, i)
+            if id ~= nil then
+              wipcandidates[key] = { id = id, isbuff = outlineat(x, y), x = x }
             end
           end
         end

@@ -886,6 +886,48 @@ describe("buff diagnostics", () => {
    * item-model quad from the batch. Exactly the buffs that carry real timers,
    * undetectable for the rest of the session.
    */
+  /**
+   * A SPRITE BUFF WHOSE TIMER WILL NOT PARSE USED TO VANISH ENTIRELY.
+   *
+   * The icon path treats an unreadable timer as "the buff is on, the number is
+   * lost" and publishes with no timeLeft. The sprite path had no such branch, so
+   * the same buff drawn as a sprite was in neither list — and not in buffUnpaired
+   * either, which only the icon loop feeds. The only trace was a silent
+   * outlines-greater-than-read discrepancy.
+   *
+   * The trigger is documented in this file's own header: the vendored module
+   * declares k = 1000 but no glyph in either font table maps to 'k', so any
+   * k-abbreviated count is unparseable — and the measured bar already had a "2K"
+   * buff on it.
+   */
+  it("keeps a sprite buff whose timer will not parse", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    for (let i = 0; i < 3; i++) {
+      plugin.frame([
+        {
+          kind: "render2d",
+          images: [
+            // A textured icon at the outline's corner, a details image the module
+            // rejects, and the outline itself.
+            { ax: 1456, ay: 0, aw: 27, ah: 27, x: 1456, y: 990, texture: "grace-of-the-elves" },
+            { buff: { valid: false } },
+            ...outlineBox(1456),
+          ],
+        },
+      ]);
+    }
+    tick(plugin);
+
+    const list = buffs(plugin);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.id).toMatch(/^s:[0-9a-f]{8}$/);
+    expect(list[0]?.timeLeft).toBeNull();
+
+    plugin.close();
+  });
+
   it("relearns the icon size even while a sprite buff keeps the bar occupied", async () => {
     const plugin = await loadPlugin();
 

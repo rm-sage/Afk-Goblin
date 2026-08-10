@@ -432,9 +432,17 @@ function DetectionPanel({
         <dt>Levels</dt>
         <dd>
           {stats === null
-            ? "— (bars never read)"
-            : `hp ${Math.round(stats.hp * 100)}%  adren ${Math.round(stats.dren * 100)}%  ` +
-              `pray ${Math.round(stats.pray * 100)}%  summ ${Math.round(stats.sum * 100)}%`}
+            ? "— (no bar read)"
+            : (["hp", "dren", "pray", "sum"] as const)
+                .map((k) => {
+                  const label = { hp: "hp", dren: "adren", pray: "pray", sum: "summ" }[k];
+                  // A bar that was not read says so. It used to be filled in with a
+                  // plausible value, which is how a permanently-full health reading
+                  // went unnoticed for a session.
+                  const v = stats[k];
+                  return `${label} ${v === null ? "unread" : `${Math.round(v * 100)}%`}`;
+                })
+                .join("  ")}
         </dd>
         <dt>Draw calls last tick</dt>
         <dd>{diag.render2dEvents}</dd>

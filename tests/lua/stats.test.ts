@@ -87,11 +87,21 @@ describe("action bar levels", () => {
   });
 
   /**
-   * Unread bars fall back to values that cannot trigger a panic: full health,
-   * prayer and summoning, and no adrenaline. A zero here would fire every
-   * low-health alert the moment one bar was hidden.
+   * AN UNREAD BAR IS NULL, NOT A HARMLESS DEFAULT — and the harmless default was
+   * a silent missed alert. This used to fill them in with full health, prayer and
+   * summoning and no adrenaline, on the reasoning that a zero would fire every
+   * low-health alert the moment a bar was hidden.
+   *
+   * The reasoning was right about zero and wrong about the alternative. On a
+   * client where the health bar's hue never clears the saturation gate while
+   * another bar does, "full health" was published from the first tick onward for
+   * the whole session, with functional:true — so an "HP at or below 25%" alert
+   * could never fire and never said why, while barsRead quietly read 1.
+   *
+   * Null is the third option: not a panic, not a lie. `actionbar` turns it into no
+   * data for that specific stat.
    */
-  it("fills unread bars with harmless values rather than zeroes", async () => {
+  it("reports an unread bar as null rather than substituting a value", async () => {
     const plugin = await loadPlugin();
 
     tick(plugin);
@@ -100,9 +110,32 @@ describe("action bar levels", () => {
 
     const s = stats(plugin);
     expect(s?.hp).toBeCloseTo(0.3, 5);
-    expect(s?.pray).toBe(1);
-    expect(s?.sum).toBe(1);
-    expect(s?.dren).toBe(0);
+    expect(s?.pray).toBeNull();
+    expect(s?.sum).toBeNull();
+    expect(s?.dren).toBeNull();
+
+    plugin.close();
+  });
+
+  /**
+   * A reading must not outlive the thing it read. `levels` used to persist for the
+   * whole session, so the last-known fractions kept being published as current the
+   * moment the action bar went off screen — a cutscene, a full-screen interface, a
+   * hidden HUD.
+   */
+  it("stops reporting a bar once it is no longer drawn", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([{ kind: "render2d", images: [bar("hp", 0.3)] }]);
+    tick(plugin);
+    expect(stats(plugin)?.hp).toBeCloseTo(0.3, 5);
+
+    // The action bar is gone.
+    plugin.idle(3);
+    tick(plugin);
+
+    expect(stats(plugin)).toBeNull();
 
     plugin.close();
   });

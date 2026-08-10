@@ -59,7 +59,15 @@ export const actionbarAlerter = defineAlerter<ActionbarVars>({
           return { triggered: false, bar: 0, functional: false };
         }
 
+        // THE ONE BAR THIS ALERT WATCHES, not the action bar in general. A bar
+        // whose colour never resolves is null while its neighbours read fine, and
+        // reporting a plausible number for it instead is how an "HP at or below
+        // 25%" alert came to sit silent at `functional: true` for a whole session.
         const value = state[vars.stat];
+        if (value === null) {
+          return { triggered: false, bar: 0, functional: false };
+        }
+
         const threshold = vars.threshold / 100;
 
         if (vars.higherlower === "higher") {

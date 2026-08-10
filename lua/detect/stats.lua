@@ -86,8 +86,13 @@ local MIN_SATURATION = 0.30
 --- a reading. The dimmest of the four is prayer at 0.71.
 local MIN_VALUE = 0.25
 
---- Latest reading per bar, or nil when never seen.
+--- Bars read during the tick in progress. Cleared every tick, so a reading cannot
+--- outlive the thing it read.
 local levels = {}
+
+--- What the tick that just ended actually read, keyed by bar. Only these are
+--- published; a bar absent here is absent on the wire and decodes as null.
+local published = {}
 
 --- Set while this tick still has bars left to find.
 ---
@@ -119,8 +124,15 @@ local lastseencount = 0
 function M.request()
   wanted = true
   lastseencount = seencount
+  published = {}
+  for key in pairs(seen) do published[key] = levels[key] end
   seen = {}
   seencount = 0
+  -- CLEARED, so a reading cannot outlive the thing it read. `levels` used to
+  -- persist for the whole session, so the last-known fractions kept being
+  -- published as current the moment the action bar went off screen -- a cutscene,
+  -- a full-screen interface, a hidden HUD.
+  levels = {}
 end
 
 --- How many of the four bars were read on the last tick. Diagnostic: a
@@ -129,19 +141,30 @@ function M.seencount()
   return lastseencount
 end
 
---- The current levels, or nil if no bar has ever been read.
+--- The levels read on the last tick, or nil when none were.
 ---
---- Returns nil rather than zeroes when unread: a caller must be able to tell
---- "cannot see the action bar" from "you are about to die".
+--- ONLY THE BARS ACTUALLY SEEN, and substituting a plausible value for the rest
+--- was a silent missed alert. This used to fill unread bars with `hp = 1.0` and
+--- `dren = 0.0`, so on a client where the health bar's hue never cleared the
+--- saturation gate while another bar did, it reported full health from the first
+--- tick onward -- for the whole session, with `functional: true`. An "HP at or
+--- below 25%" alert could never fire and never said why, while barsRead quietly
+--- read 1.
+---
+--- That is the same defect the XP reader was rewritten to remove: once one reading
+--- had been taken, "cannot see it" stopped being representable. A missing key
+--- reaches the schema absent and decodes as null, which the alerter turns into no
+--- data for that specific stat.
 function M.read()
-  if levels.hp == nil and levels.pray == nil and levels.dren == nil and levels.sum == nil then
-    return nil
-  end
+  local any = false
+  for _ in pairs(published) do any = true break end
+  if not any then return nil end
+
   return {
-    hp = levels.hp or 1.0,
-    pray = levels.pray or 1.0,
-    sum = levels.sum or 1.0,
-    dren = levels.dren or 0.0,
+    hp = published.hp,
+    pray = published.pray,
+    sum = published.sum,
+    dren = published.dren,
   }
 end
 

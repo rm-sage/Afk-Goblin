@@ -18,11 +18,25 @@ import { z } from "zod";
 /** A 0..1 resource level. Out-of-range means Lua misread, so reject rather than clamp. */
 const Fraction = z.number().min(0).max(1);
 
+/**
+ * Action bar resource levels, each 0..1, or null for a bar that was not read.
+ *
+ * PER-BAR ABSENCE HAS TO BE REPRESENTABLE. These used to be required, so Lua
+ * substituted a plausible value for any bar it could not identify — `hp = 1.0`,
+ * `dren = 0.0`. On a client where the health bar's hue never cleared the
+ * saturation gate while another bar did, that reported full health for the whole
+ * session with `functional: true`, and an "HP at or below 25%" alert could never
+ * fire and never said why.
+ *
+ * `.default(null)` and not merely `.nullable()`, because Lua deletes a key
+ * assigned nil: an unread bar arrives ABSENT, and a nullable-only field would
+ * reject the whole snapshot.
+ */
 export const StatsSchema = z.object({
-  hp: Fraction,
-  pray: Fraction,
-  sum: Fraction,
-  dren: Fraction,
+  hp: Fraction.nullable().default(null),
+  pray: Fraction.nullable().default(null),
+  sum: Fraction.nullable().default(null),
+  dren: Fraction.nullable().default(null),
 });
 
 export const BuffSlotSchema = z.object({
