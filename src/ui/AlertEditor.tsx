@@ -83,7 +83,23 @@ export function AlertEditor(props: AlertEditorProps) {
 
   return (
     <dialog ref={ref} class="dlg--wide" onCancel={props.onClose}>
-      <h2>{creating ? "New alert" : "Edit alert"}</h2>
+      {/*
+        STICKY, because this dialog is taller than the window for most types. The
+        only ways out used to be scrolling to the bottom for Cancel or knowing
+        about ESC, and the bottom Cancel is gone now that this is always reachable.
+      */}
+      <div class="dlg__head">
+        <h2>{creating ? "New alert" : "Edit alert"}</h2>
+        <button
+          type="button"
+          class="dlg__close"
+          aria-label="Close without saving"
+          title="Close without saving"
+          onClick={props.onClose}
+        >
+          ×
+        </button>
+      </div>
 
       <div class="fld">
         <label class="fld__label">Name</label>
@@ -94,32 +110,58 @@ export function AlertEditor(props: AlertEditorProps) {
         />
       </div>
 
-      {creating ? (
-        <div class="fld">
-          <label class="fld__label">Type</label>
-          <select
-            value={draft.type}
-            onChange={(e) => setDraft(blankAlert((e.target as HTMLSelectElement).value))}
-          >
-            {implementedModules().map((m) => (
-              <option key={m.type} value={m.type}>
-                {m.typename}
-              </option>
-            ))}
-          </select>
-          <p class="fld__help">{module?.descr ?? ""}</p>
-        </div>
-      ) : (
-        <div class="fld">
-          <label class="fld__label">Type</label>
-          <p class="fld__help">
-            {module?.typename ?? draft.type}
-            {module === undefined && KNOWN_ALERTER_TYPES.has(draft.type)
-              ? " — not implemented yet, so this alert will not run."
-              : ""}
-          </p>
-        </div>
-      )}
+      <div class="fld">
+        <label class="fld__label">Type</label>
+        <select
+          value={draft.type}
+          onChange={(e) => {
+            const type = (e.target as HTMLSelectElement).value;
+            const fresh = blankAlert(type);
+            // ONLY `vars` RESET. Changing the type used to rebuild the whole
+            // draft, so a name typed before picking the type was thrown away —
+            // and the name is usually the first thing anyone fills in. Everything
+            // here is type-independent; only the type-specific settings cannot
+            // survive, because they are the ones that mean something different.
+            setDraft((d) => ({
+              ...fresh,
+              name: d.name,
+              group: d.group,
+              globalalarm: d.globalalarm,
+              alarm: d.alarm,
+              voice: d.voice,
+              tooltip: d.tooltip,
+              exportbar: d.exportbar,
+            }));
+          }}
+        >
+          {implementedModules().map((m) => (
+            <option key={m.type} value={m.type}>
+              {m.typename}
+            </option>
+          ))}
+          {/*
+            An imported alert of a type this build cannot run still has to show
+            its OWN type as selected. Without this the select would fall back to
+            the first option, which reads as the alert having silently changed
+            type just by being opened.
+          */}
+          {module === undefined ? (
+            <option value={draft.type}>
+              {draft.type}
+              {KNOWN_ALERTER_TYPES.has(draft.type) ? " — not implemented yet" : " — unknown type"}
+            </option>
+          ) : null}
+        </select>
+        <p class="fld__help">
+          {module?.descr ??
+            (KNOWN_ALERTER_TYPES.has(draft.type)
+              ? "This type is not implemented yet, so this alert will not run. Changing the type here will replace its settings."
+              : "")}
+          {!creating && module !== undefined
+            ? " Changing the type replaces this alert's own settings; its name, group, sound and speech are kept."
+            : ""}
+        </p>
+      </div>
 
       <div class="fld">
         <label class="fld__label">Group</label>
@@ -335,9 +377,6 @@ export function AlertEditor(props: AlertEditorProps) {
           </button>
         ) : null}
         <span class="ftr__spacer" />
-        <button class="btn btn--ghost" onClick={props.onClose}>
-          Cancel
-        </button>
         <button class="btn" onClick={save} disabled={!varsValid || draft.name.trim().length === 0}>
           {creating ? "Add" : "Save"}
         </button>

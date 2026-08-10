@@ -81,14 +81,34 @@ export function useDragList(onDrop: (from: number, target: DropTarget) => void) 
       const target = event.currentTarget as HTMLElement | null;
       target?.setPointerCapture?.(event.pointerId);
 
+      // MEASURED ONCE, BEFORE ANYTHING IS TRANSFORMED, and re-measuring per move
+      // was a real bug rather than a waste.
+      //
+      // The drag transform is applied to the very element that carries
+      // `data-index`, and getBoundingClientRect() includes transforms — so once a
+      // drag started, the dragged row's rect followed the pointer exactly. The
+      // pointer's position RELATIVE to that row was therefore constant for the
+      // whole gesture, and the drop target came out as a function of where the row
+      // was GRABBED rather than where it was dragged to. Neighbours shifting to
+      // open a gap moved their rects too.
+      //
+      // That is what made leaving a group require an actual reposition: the
+      // boundary the user aimed at was not the boundary being computed. Layout does
+      // not change during a drag — only transforms do, and transforms do not affect
+      // layout — so one measurement taken before the first transform is both
+      // correct and cheaper.
+      //
+      // The list not scrolling mid-drag is the assumption here; there is no
+      // auto-scroll, and a scroll would previously have been just as wrong.
+      const list = listRef.current;
+      const rows = list === null ? [] : readRows(list);
+
       let live: DragState | null = null;
 
       const move = (e: PointerEvent): void => {
         const offsetY = e.clientY - startY.current;
         if (live === null && Math.abs(offsetY) < DRAG_THRESHOLD_PX) return;
 
-        const list = listRef.current;
-        const rows = list === null ? [] : readRows(list);
         live = { from: index, offsetY, target: targetFor(rows, e.clientY, index) };
         setDrag(live);
       };

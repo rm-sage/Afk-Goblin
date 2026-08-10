@@ -105,3 +105,49 @@ describe("groupsOf", () => {
     expect(groupsOf([a("A"), a("B")])).toEqual([]);
   });
 });
+
+/**
+ * LEAVING A GROUP WITHOUT MOVING.
+ *
+ * Reported in game: "to remove an alert from a group by dragging, its location
+ * has to be changed". With a two-alert group, dragging the lower one down lands
+ * it at the same index — but past the end of the group, which is exactly the
+ * gesture for getting out.
+ */
+describe("applyDrop leaving a group without changing position", () => {
+  it("ungroups the lower member of a trailing pair dragged down", () => {
+    const list = [a("Familiar timer", "Group"), a("Reservoir", "Group")];
+
+    const out = applyDrop(list, 1, { kind: "at", index: 2 });
+
+    expect(names(out)).toEqual(["Familiar timer", "Reservoir"]);
+    expect(groups(out)).toEqual(["Group", null]);
+  });
+
+  it("ungroups the upper member of a trailing pair dragged up", () => {
+    const list = [a("Familiar timer", "Group"), a("Reservoir", "Group")];
+
+    const out = applyDrop(list, 0, { kind: "at", index: 0 });
+
+    expect(names(out)).toEqual(["Familiar timer", "Reservoir"]);
+    expect(groups(out)).toEqual([null, "Group"]);
+  });
+
+  it("ungroups the lower member when an ungrouped alert follows", () => {
+    const list = [a("Familiar timer", "Group"), a("Reservoir", "Group"), a("Other")];
+
+    const out = applyDrop(list, 1, { kind: "at", index: 2 });
+
+    expect(names(out)).toEqual(["Familiar timer", "Reservoir", "Other"]);
+    expect(groups(out)).toEqual(["Group", null, null]);
+  });
+
+  it("keeps a middle member grouped when it lands back between two of its group", () => {
+    const list = [a("A", "G"), a("B", "G"), a("C", "G")];
+
+    const out = applyDrop(list, 1, { kind: "at", index: 2 });
+
+    expect(names(out)).toEqual(["A", "B", "C"]);
+    expect(groups(out)).toEqual(["G", "G", "G"]);
+  });
+});

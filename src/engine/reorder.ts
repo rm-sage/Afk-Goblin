@@ -40,6 +40,13 @@ export function applyDrop(
   const moving = alerts[from]!;
   const rest = alerts.filter((_, i) => i !== from);
 
+  // A DROP THAT DOES NOT MOVE THE ALERT CAN STILL CHANGE ITS GROUP. Landing at
+  // the same index is not "nothing happened": with a two-alert group, dragging the
+  // lower one down leaves it where it was but puts it past the end of the group,
+  // which is the gesture for getting out. The rules below decide the group from
+  // the NEIGHBOURS rather than from whether the index moved, so they handle it —
+  // as long as nothing short-circuits before they run.
+
   if (target.kind === "onto") {
     if (target.index === from) return [...alerts];
 
