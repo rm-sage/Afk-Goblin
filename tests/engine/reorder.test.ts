@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDrop, groupsOf } from "~/engine/reorder";
+import { applyDrop, groupsOf, renameGroup } from "~/engine/reorder";
 import { AlerterBaseSchema, type AlerterBase } from "~/store/schema";
 
 const a = (name: string, group: string | null = null): AlerterBase =>
@@ -149,5 +149,48 @@ describe("applyDrop leaving a group without changing position", () => {
 
     expect(names(out)).toEqual(["A", "B", "C"]);
     expect(groups(out)).toEqual(["G", "G", "G"]);
+  });
+});
+/**
+ * A group is not an entity — it is a name repeated on a contiguous run — so a
+ * rename is a sweep. Renaming alert by alert through the editor would leave the
+ * run split under two names partway through, which reads as the group having been
+ * torn in half.
+ */
+describe("renameGroup", () => {
+  it("renames every alert carrying the old name", () => {
+    const list = [a("A", "G"), a("B", "G"), a("C"), a("D", "H")];
+
+    const out = renameGroup(list, "G", "Combat");
+
+    expect(groups(out)).toEqual(["Combat", "Combat", null, "H"]);
+    expect(names(out)).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("leaves alerts outside the group untouched by identity", () => {
+    const list = [a("A", "G"), a("C")];
+
+    const out = renameGroup(list, "G", "Combat");
+
+    expect(out[1]).toBe(list[1]);
+  });
+
+  it("ignores an empty or unchanged name rather than ungrouping by stealth", () => {
+    const list = [a("A", "G"), a("B", "G")];
+
+    expect(groups(renameGroup(list, "G", "   "))).toEqual(["G", "G"]);
+    expect(groups(renameGroup(list, "G", "G"))).toEqual(["G", "G"]);
+  });
+
+  it("merges into an existing group when renamed onto its name", () => {
+    const list = [a("A", "G"), a("B", "H")];
+
+    expect(groups(renameGroup(list, "G", "H"))).toEqual(["H", "H"]);
+  });
+
+  it("trims the new name", () => {
+    const list = [a("A", "G")];
+
+    expect(groups(renameGroup(list, "G", "  Combat  "))).toEqual(["Combat"]);
   });
 });

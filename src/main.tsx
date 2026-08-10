@@ -11,7 +11,7 @@ import { Store } from "~/store/storage";
 import { z } from "zod";
 import { PresetSchema, SettingsSchema, type AlerterBase, type Preset, type Settings } from "~/store/schema";
 import type { ChatLine } from "~/engine/types";
-import { applyDrop } from "~/engine/reorder";
+import { applyDrop, renameGroup } from "~/engine/reorder";
 import { speak } from "~/alerting/speech";
 import { App, type PresetAction } from "~/ui/App";
 import "~/ui/styles.css";
@@ -286,6 +286,11 @@ function paint(): void {
       onReorder={(from, target) => {
         mutateAlerts((alerts) => {
           alerts.splice(0, alerts.length, ...applyDrop(alerts, from, target));
+        });
+      }}
+      onRenameGroup={(from, to) => {
+        mutateAlerts((alerts) => {
+          alerts.splice(0, alerts.length, ...renameGroup(alerts, from, to));
         });
       }}
       chat={{

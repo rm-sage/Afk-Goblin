@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # bolt-migration is where the work happens; main is the pre-Bolt history.
+    # Without it here a branch push ran no checks at all, and 34 commits reached
+    # the remote having never been validated by anything but a local run.
+    branches: [main, bolt-migration]
   pull_request:
   workflow_dispatch:
 

@@ -1087,3 +1087,25 @@ input[type="file"]::file-selector-button:hover {
 .saveline__note--ok {
   color: var(--ok);
 }
+
+/*
+ * A group heading is editable in place, so it needs to look like it can be
+ * clicked without looking like an input box sitting in the list.
+ */
+.group--editable {
+  cursor: text;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin-left: -4px;
+  outline: none;
+}
+
+.group--editable:hover {
+  background: var(--bg-row);
+}
+
+.group--editable:focus {
+  background: var(--bg-row);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--text);
+}

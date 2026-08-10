@@ -35,6 +35,8 @@ export type AppProps = {
   onSaveAlert(index: number | null, alert: AlerterBase): void;
   onDeleteAlert(index: number): void;
   onReorder(from: number, target: DropTarget): void;
+  /** Rename a group, propagating to every alert that carries it. */
+  onRenameGroup(from: string, to: string): void;
   soundNames: string[];
   missingSounds: string[];
   /** Chat reader health, surfaced because both failure modes are user-fixable. */
@@ -903,11 +905,56 @@ export function App(props: AppProps) {
 
       <main class={`list${drag !== null ? " list--dragging" : ""}`} ref={listRef}>
         {anyAlerters ? (
-          sections.map((s, n) => (
+          sections.map((s, n) => {
+            // Bound to a const so its non-null narrowing survives into the
+            // handlers below; a property access does not narrow inside a closure.
+            const group = s.group;
+            return (
             <>
-              {s.group !== null ? (
-                <div class="group" key={`g${n}`}>
-                  {s.group}
+              {group !== null ? (
+                /*
+                  EDITABLE IN PLACE. A group's name could only ever be whatever
+                  applyDrop generated — "Group", "Group 2" — or set one alert at a
+                  time through the editor, which meant renaming a group of four
+                  was four trips through a dialog with no guarantee they still
+                  matched at the end.
+                  contentEditable rather than an input so the heading keeps its own
+                  styling and layout; the rename is committed on blur or Enter, and
+                  Escape restores what was there.
+                */
+                <div
+                  class="group group--editable"
+                  key={`g${n}`}
+                  title="Click to rename this group"
+                  contentEditable
+                  spellcheck={false}
+                  onFocus={(e) => {
+                    (e.currentTarget as HTMLElement).dataset.was = group;
+                  }}
+                  onKeyDown={(e) => {
+                    const el = e.currentTarget as HTMLElement;
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      el.blur();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      el.textContent = el.dataset.was ?? group;
+                      el.blur();
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const el = e.currentTarget as HTMLElement;
+                    const next = (el.textContent ?? "").trim();
+                    // An empty name would ungroup by stealth, and there is already
+                    // a gesture for that — drag it out. Put the old one back.
+                    if (next.length === 0 || next === group) {
+                      el.textContent = group;
+                      return;
+                    }
+                    props.onRenameGroup(group, next);
+                  }}
+                >
+                  {group}
                 </div>
               ) : null}
               {s.items.map(({ a, i }) => (
@@ -923,7 +970,8 @@ export function App(props: AppProps) {
                 />
               ))}
             </>
-          ))
+            );
+          })
         ) : (
           <div class="empty">
             <h2>{preset === null ? "No presets yet" : "No alerts in this preset"}</h2>

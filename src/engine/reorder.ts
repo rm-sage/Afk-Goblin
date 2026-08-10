@@ -86,6 +86,32 @@ export function applyDrop(
   return out;
 }
 
+/**
+ * Rename a group across every alert carrying it.
+ *
+ * A group is not an entity — it is a name repeated on a contiguous run of alerts —
+ * so renaming one is a sweep rather than an edit to a single record. That is also
+ * why it has to be done in one pass: renaming alert by alert through the editor
+ * leaves the run split under two names partway through, which reads as the group
+ * having been torn in half.
+ *
+ * MERGING IS THE CALLER'S PROBLEM, not a special case here. Renaming onto a name
+ * already in use joins the two, which is what the words on screen would then say;
+ * whether the runs are adjacent is a layout question the list already answers.
+ *
+ * Returns a new array; the input is not mutated. Alerts that do not carry the old
+ * name are returned by identity, so nothing else is rebuilt downstream.
+ */
+export function renameGroup(
+  alerts: readonly AlerterBase[],
+  from: string,
+  to: string,
+): AlerterBase[] {
+  const name = to.trim();
+  if (name.length === 0 || name === from) return [...alerts];
+  return alerts.map((a) => (a.group === from ? { ...a, group: name } : a));
+}
+
 /** Group names still in use, in the order they first appear. */
 export function groupsOf(alerts: readonly AlerterBase[]): string[] {
   return [...new Set(alerts.map((a) => a.group).filter((g): g is string => g !== null))];
