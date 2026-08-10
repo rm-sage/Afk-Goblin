@@ -95,13 +95,13 @@ bolt.onrender2d(function (event)
   -- point is that the expensive scans below get declined most of the time.
   local scanning = (bolt.time() - lasttick) < SCAN_BUDGET_US
 
-  -- Chat reports whether this batch held a chat box, and XP is kept off those.
-  -- Both read the same text font, so a chat line saying "+50" is otherwise
-  -- indistinguishable from an XP drop -- and a false drop resets an inactivity
-  -- timer, which DELAYS the alert rather than firing a spurious one.
-  local ischatbatch = chat.onrender2d(event, scanning)
+  chat.onrender2d(event, scanning)
   stats.onrender2d(event, scanning)
-  xp.onrender2d(event, scanning, ischatbatch)
+  -- Every batch, chat's included. XP is anchored on the counter's own column
+  -- header now rather than on loose "+N" text, so there is no impostor worth
+  -- skipping a real interface for -- and skipping chat's batch would lose the
+  -- counter entirely if the two ever share one. See lua/detect/xp.lua.
+  xp.onrender2d(event, scanning)
 
   -- Buff PAIRING is not budgeted: its work is already proportional to the icons
   -- waiting rather than to everything on screen, and an icon's timer text can

@@ -48,9 +48,13 @@ local MAX_ICONS = 96
 --- to be drawn early. Sized to hold a whole interface instead.
 local MAX_BARS = 48
 
---- Text runs reported. An interface holds well under this; the cap is there so a
---- screen full of chat cannot turn the report into a flood.
-local MAX_TEXT = 64
+--- Text runs reported.
+---
+--- A LIVE READING FILLED 64 EXACTLY, on an ordinary screen with the interface,
+--- inventory, action bar and two chat boxes open -- about 68 runs. The XP counter
+--- survived only because it happened to be drawn early, which is the same way
+--- MAX_BARS nearly cost the resource-bar reading. Sized to hold a whole screen.
+local MAX_TEXT = 200
 
 local armed = false
 local ticks = 0
@@ -86,6 +90,14 @@ local iconseen = {}
 local texts = {}
 local textseen = {}
 
+--- Which render2d batch is being walked, so a run can say which one it came from.
+---
+--- Added because a reading could not distinguish "the counter is drawn in its own
+--- batch" from "the counter shares a batch with chat", and a detector that skips
+--- chat's batch behaves completely differently in those two worlds. Guessing cost
+--- a round trip.
+local batch = 0
+
 --- Start sampling. The next full tick is what gets reported.
 function M.arm()
   armed = true
@@ -98,6 +110,7 @@ function M.arm()
   barseen = {}
   texts = {}
   textseen = {}
+  batch = 0
 end
 
 function M.armed()
@@ -148,8 +161,10 @@ end
 function M.onrender2d(event)
   if not armed then return end
 
-  -- Every text run drawn, with where it was. Deduped by text and position so a
-  -- tick of identical frames reports one copy.
+  batch = batch + 1
+
+  -- Every text run drawn, with where it was and which batch it arrived in.
+  -- Deduped by text and position so a tick of identical frames reports one copy.
   textscan.scan(event, function (run, box)
     local key = string.format("%s@%d,%d", run, box.left, box.bottom)
     if textseen[key] or #texts >= MAX_TEXT then return end
@@ -160,6 +175,7 @@ function M.onrender2d(event)
       y = box.bottom,
       w = box.right - box.left,
       h = box.bottom - box.top,
+      event = batch,
     }
   end)
 

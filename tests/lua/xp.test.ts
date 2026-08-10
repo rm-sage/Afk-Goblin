@@ -57,6 +57,62 @@ function counter(
 }
 
 describe("XP counter reading", () => {
+  /**
+   * THE REAL INTERFACE, restated from a live probe reading on 2026-08-09 rather
+   * than invented. Both bugs this reproduces presented identically in game — as
+   * "the counter is not on screen" — and neither was visible to a fixture I had
+   * written myself.
+   *
+   *   text "XP"         at 3041,1111 13x9      <- the column header
+   *   text "XP"         at 3128,1111 13x9      <- the "XP" OF "XP/h"
+   *   text "/"          at 3142,1115 5x16      <- four pixels below their baseline
+   *   text "h"          at 3147,1111 6x10
+   *   text "ETA"        at 3215,1111 22x9
+   *   text "73,734"     at 3042,1136 37x11
+   *   text "37,138,020" at 3041,1163 61x11
+   *   text "27,489,279" at 3042,1190 60x11
+   *   text "Gain"       at 3041,1214 25x10     <- the second table starts here
+   *   text "119,949,823" ...
+   *
+   * At a baseline tolerance of 3, "XP/h" fragmented: its "XP" became a run
+   * indistinguishable from the real header, and the orphaned "/" became a table
+   * ROW four pixels below the header — which ended the table before a single value
+   * was read.
+   */
+  it("reads the counter as the game really draws it", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: [
+          ...fontRun("XP", { x: 3041, y: 1111 }, 7, 700),
+          ...fontRun("XP/h", { x: 3128, y: 1111 }, 7, 900),
+          ...fontRun("ETA", { x: 3215, y: 1111 }, 7, 1100),
+          ...fontRun("73,734", { x: 3042, y: 1136 }, 7, 1300),
+          ...fontRun("82,407", { x: 3128, y: 1136 }, 7, 1500),
+          ...fontRun("37,138,020", { x: 3041, y: 1163 }, 7, 1700),
+          ...fontRun("77,427", { x: 3129, y: 1163 }, 7, 1900),
+          ...fontRun("5w", { x: 3215, y: 1161 }, 7, 2100),
+          ...fontRun("27,489,279", { x: 3042, y: 1190 }, 7, 2300),
+          ...fontRun("64,847", { x: 3128, y: 1190 }, 7, 2500),
+          ...fontRun("Gain", { x: 3041, y: 1214 }, 7, 2700),
+          ...fontRun("Drops", { x: 3128, y: 1217 }, 7, 2900),
+          ...fontRun("GP/h", { x: 3215, y: 1214 }, 7, 3100),
+          ...fontRun("119,949,823", { x: 3041, y: 1239 }, 7, 3300),
+        ],
+      },
+    ]);
+    tick(plugin);
+
+    expect(totals(plugin)).toEqual({ tot: 73734 + 37138020 + 27489279 });
+    expect(plugin.latest()?.diag.xpCounterFound).toBe(true);
+    expect(plugin.latest()?.diag.xpCells).toEqual(["73,734", "37,138,020", "27,489,279"]);
+
+    plugin.close();
+  });
+
   it("reads the leftmost column of every skill row", async () => {
     const plugin = await loadPlugin();
 
@@ -191,11 +247,18 @@ describe("XP counter reading", () => {
   });
 
   /**
-   * Chat and the counter are drawn in the same font, and a chat line could easily
-   * contain "XP" followed by numbers. main.lua keeps the scan off any batch chat
-   * claimed.
+   * READS THE COUNTER EVEN WHERE CHAT IS, which is the opposite of what this
+   * asserted a version ago and the change fixed a total failure in game.
+   *
+   * While XP meant reading floating "+N" text, a chat line saying "+50" was
+   * indistinguishable from a drop, so batches chat had claimed were skipped.
+   * Anchored on a column header that reasoning no longer holds: a chat line would
+   * have to contain "XP" as its own run above rows whose leftmost run is a number.
+   * Meanwhile the cost of being wrong is total — this side cannot see how the game
+   * groups its interfaces into batches, so if the counter ever shares one with
+   * chat, skipping it loses XP entirely. Which is what happened.
    */
-  it("does not read a counter out of a chat batch", async () => {
+  it("reads a counter that shares a batch with chat", async () => {
     const plugin = await loadPlugin();
 
     tick(plugin);
@@ -210,7 +273,7 @@ describe("XP counter reading", () => {
     ]);
     tick(plugin);
 
-    expect(totals(plugin)).toBeNull();
+    expect(totals(plugin)).toEqual({ tot: 61983 });
 
     plugin.close();
   });

@@ -35,7 +35,7 @@ export function probeReport(probe: Reportable): string {
     // TEXT FIRST, because it is the only section that names what an interface
     // says. Reading the XP counter needs its header strings, its column order and
     // its number format, and all three were about to be guessed at.
-    ...probe.texts.map((t) => `text "${t.text}" at ${t.x},${t.y} ${t.w}x${t.h}`),
+    ...probe.texts.map((t) => `text "${t.text}" at ${t.x},${t.y} ${t.w}x${t.h} batch ${t.event}`),
     ...probe.icons.map((i) => `icon ${i.id ?? "unreadable"} at ${i.x},${i.y} ${i.w}x${i.h}`),
     ...probe.shapes.map((s) => `${s.count}x ${s.key} first at ${s.x},${s.y}`),
     probe.truncated ? "(capped — there was more than this)" : "",

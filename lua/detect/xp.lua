@@ -92,9 +92,17 @@ end
 
 --- Read the counter out of one batch.
 --- @param scanning boolean|nil false once this frame's scan budget is spent.
---- @param ischatbatch boolean|nil true when chat detection claimed this batch.
-function M.onrender2d(event, scanning, ischatbatch)
-  if scanning == false or ischatbatch == true then return end
+---
+--- NO CHAT-BATCH EXCLUSION, AND REMOVING IT FIXED A TOTAL FAILURE. While XP meant
+--- reading floating "+N" text, a chat line saying "+50" was indistinguishable from
+--- a drop, so batches chat had claimed were skipped. Anchored on a column header
+--- instead, that exclusion buys almost nothing -- a chat line would have to
+--- contain "XP" as its own run above rows whose leftmost run is a number -- and it
+--- costs everything if the counter happens to share a render batch with chat,
+--- which is not something this side can see or control. Skipping a real interface
+--- to avoid an implausible impostor is the wrong trade.
+function M.onrender2d(event, scanning)
+  if scanning == false then return end
 
   -- Collected first, then reasoned about. Runs arrive in draw order, which is not
   -- reading order, so rows cannot be assembled on the fly.
@@ -152,17 +160,27 @@ function M.onrender2d(event, scanning, ischatbatch)
     end
 
     if value == nil then
-      -- A row with no number at all is the next table's header ("Gain | Drops |
-      -- GP/h"), so the XP table has ended. Stopping here rather than filtering by
-      -- x is what keeps the lower table's large numbers out without needing to
-      -- know where either table sits.
-      break
+      -- A row of WORDS is the next table's header ("Gain | Drops | GP/h"), so the
+      -- XP table has ended. Stopping there rather than filtering by x is what
+      -- keeps the lower table's equally large numbers out without needing to know
+      -- where either table sits.
+      --
+      -- A row with neither a number nor a word is a FRAGMENT and is skipped, not
+      -- treated as the end. That distinction is load-bearing: an orphaned '/' from
+      -- a "XP/h" header once landed four pixels below the header row and ended the
+      -- table before a single value had been read, which presented as the counter
+      -- not being on screen at all.
+      local word = false
+      for _, r in ipairs(row.runs) do
+        if string.match(r.text, "%a") ~= nil then word = true break end
+      end
+      if word then break end
+    else
+      read = read + 1
+      sum = sum + value
+      if wascoarse then wipcoarse = true end
+      if #wipcells < MAX_ROWS then wipcells[#wipcells + 1] = cell end
     end
-
-    read = read + 1
-    sum = sum + value
-    if wascoarse then wipcoarse = true end
-    if #wipcells < MAX_ROWS then wipcells[#wipcells + 1] = cell end
   end
 
   if read == 0 then return end

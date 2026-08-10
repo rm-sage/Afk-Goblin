@@ -453,6 +453,15 @@ export const ProbeMessageSchema = z.object({
         y: z.number(),
         w: z.number().default(0),
         h: z.number().default(0),
+        /**
+         * Which render2d batch it arrived in.
+         *
+         * Whether two interfaces share a batch is invisible from this side and
+         * changes how a detector must behave — a reader that skipped chat's batch
+         * lost the XP counter entirely in one of the two worlds, and a report
+         * without this could not say which world it was.
+         */
+        event: z.number().int().nonnegative().default(0),
       }),
     )
     .default([]),

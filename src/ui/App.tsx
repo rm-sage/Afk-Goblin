@@ -382,9 +382,9 @@ function DetectionPanel({
       <h3 class="diag__head">XP</h3>
       <p class={`diag__verdict diag__verdict--${diag.xpCounterFound && !diag.xpCoarse ? "ok" : "bad"}`}>
         {!diag.xpCounterFound
-          ? "The XP counter is not on screen, so no XP can be read and XP alerts will show no data. " +
-            "Open it in game — XP is read from its totals, not from the floating +N drops, because a " +
-            "drop lingers for about five seconds after XP really stops."
+          ? "The XP counter's column header was not found, so no XP can be read and XP alerts will " +
+            "show no data. If the counter IS open, this is a detection bug rather than a setting — " +
+            "sample the draw stream below and the text it reports will say what the header looks like."
           : diag.xpCoarse
             ? "The XP counter is showing an abbreviated total such as 37.1M, which only moves on a gain " +
               "of tens of thousands — too coarse to tell activity from inactivity. Widen the counter so " +

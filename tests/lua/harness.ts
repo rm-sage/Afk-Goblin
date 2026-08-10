@@ -471,7 +471,25 @@ const GLYPH_HEIGHT: Record<string, number> = {
   ",": 4,
   ".": 3,
   "+": 6,
-  "/": 13,
+  "/": 16,
+};
+
+/**
+ * How far below the baseline a glyph hangs.
+ *
+ * MEASURED, from a live reading of the XP counter header on 2026-08-09:
+ *
+ *   text "XP" at 3128,1111 13x9
+ *   text "/"  at 3142,1115 5x16
+ *   text "h"  at 3147,1111 6x10
+ *
+ * '/' is 16 tall against 9-tall capitals and its bottom sits FOUR pixels below
+ * theirs. Without that descent a fixture cannot tell a baseline tolerance of 3
+ * from one of 6 — and at 3 the real "XP/h" header fragmented, which is what made
+ * the counter read as absent in game.
+ */
+const GLYPH_DESCENT: Record<string, number> = {
+  "/": 4,
 };
 
 function glyphHeight(ch: string): number {
@@ -498,7 +516,9 @@ export function fontRun(
     const x = at.x + col * gap;
     // `at.y` is the BASELINE. A short glyph is drawn lower so its bottom lands on
     // it, which is how the game lays text out and what makes the top edges differ.
-    const y = at.y - ah;
+    // A descender's bottom lands BELOW it, which is what breaks a run grouped on
+    // too tight a tolerance.
+    const y = at.y - ah + (GLYPH_DESCENT[ch] ?? 0);
     images.push({ ax, ay: 300, aw: 6, ah, x, y, char: ch, tint: [0, 0, 0] });
     images.push({ ax, ay: 300, aw: 6, ah, x: x + 1, y, char: ch, tint: [255, 255, 255] });
   });

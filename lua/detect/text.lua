@@ -30,8 +30,24 @@ local M = {}
 M.MAX_GLYPH_GAP = 6
 
 --- How far two glyphs' bottom edges may differ and still count as one line.
---- A pixel or two, for glyphs that descend slightly below the baseline.
-M.BASELINE_TOLERANCE = 3
+---
+--- SIX, FROM A MEASUREMENT, AND THREE WAS WRONG. A live reading of the XP counter
+--- header (2026-08-09) gives, verbatim:
+---
+---   text "XP" at 3128,1111 13x9
+---   text "/"  at 3142,1115 5x16
+---   text "h"  at 3147,1111 6x10
+---
+--- '/' is a 16-tall glyph against 9-tall capitals and hangs FOUR pixels below
+--- their baseline. At a tolerance of three it broke away, so "XP/h" fragmented
+--- into "XP", "/" and "h" -- which made the XP/h column header produce a run
+--- exactly equal to "XP" and therefore indistinguishable from the XP column
+--- header, and left an orphaned "/" sitting four pixels below the header row where
+--- it read as a table row of its own.
+---
+--- Six is still far inside the gap between real rows, which that same reading puts
+--- at 27 pixels (1136, 1163, 1190).
+M.BASELINE_TOLERANCE = 6
 
 --- Walk one batch and hand every run of glyphs to `onrun(text, box)`.
 ---
