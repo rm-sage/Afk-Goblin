@@ -108,7 +108,7 @@ function M.onrender2d(event, scanning)
   -- reading order, so rows cannot be assembled on the fly.
   local runs = {}
   text.scan(event, function (run, box)
-    runs[#runs + 1] = { text = run, left = box.left, bottom = box.bottom }
+    runs[#runs + 1] = { text = run, left = box.left, right = box.right, bottom = box.bottom }
   end)
   if #runs == 0 then return end
 
@@ -123,11 +123,32 @@ function M.onrender2d(event, scanning)
 
   wipfound = true
 
+  -- THE HEADER ROW'S OWN X-SPAN BOUNDS THE TABLE, and it has to.
+  --
+  -- Confirmed by a live reading on 2026-08-09: the counter and the CHAT BOX are
+  -- drawn in the same render2d batch (both batch 23), so every chat line is a
+  -- candidate row. It happened to work because the "Gain" header sorts above them
+  -- and stops the scan first -- which is luck, not a design. Close the GP table
+  -- and chat would have been read as XP.
+  --
+  -- The bound is derived rather than invented: cells are left-aligned under their
+  -- headers, so a cell's left edge falls inside the span the header row occupies.
+  -- In that reading the headers run 3041..3237 while chat sits at x=10 and x=638
+  -- and the summoning readout at 2384 -- all comfortably outside.
+  local headerleft, headerright = nil, nil
+  for _, r in ipairs(runs) do
+    if math.abs(r.bottom - headerbottom) <= text.BASELINE_TOLERANCE then
+      if headerleft == nil or r.left < headerleft then headerleft = r.left end
+      if headerright == nil or r.right > headerright then headerright = r.right end
+    end
+  end
+
   -- Rows below the header, keyed by baseline. A row is one baseline: every cell
   -- on it shares a bottom edge whatever heights its glyphs happen to be.
   local rows = {}
   for _, r in ipairs(runs) do
-    if r.bottom > headerbottom + text.BASELINE_TOLERANCE then
+    if r.bottom > headerbottom + text.BASELINE_TOLERANCE
+      and r.left >= headerleft and r.left <= headerright then
       local key = nil
       for _, row in ipairs(rows) do
         if math.abs(row.bottom - r.bottom) <= text.BASELINE_TOLERANCE then key = row break end

@@ -279,6 +279,40 @@ describe("XP counter reading", () => {
   });
 
   /**
+   * CONFIRMED IN A LIVE READING: the counter and the chat box are drawn in the
+   * SAME batch — both batch 23 — so every chat line below the header is a
+   * candidate row. It only worked because the "Gain" header sorted above them and
+   * stopped the scan first, which is luck rather than design.
+   *
+   * The header row's own x-span is the bound. Chat sat at x=10 and x=638 in that
+   * reading while the counter's headers ran 3041..3237.
+   */
+  it("ignores text elsewhere on screen that shares the counter's batch", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: [
+          // The counter, with NO second table below it to stop the scan.
+          ...counter({ x: 3041, y: 1111 }, [["170,102", "73,798", "-"]]),
+          // A chat log far to the left, below the header baseline.
+          ...fontRun("[01:31:12]Youcapturethefragment", { x: 638, y: 1336 }, 7, 4000),
+          // And a readout far to the right.
+          ...fontRun("990/990", { x: 2384, y: 1358 }, 7, 5000),
+        ],
+      },
+    ]);
+    tick(plugin);
+
+    expect(totals(plugin)).toEqual({ tot: 170102 });
+    expect(plugin.latest()?.diag.xpCells).toEqual(["170,102"]);
+
+    plugin.close();
+  });
+
+  /**
    * A total holds still between gains, which is the entire point — the drop reader
    * kept climbing for five seconds after XP stopped.
    */
