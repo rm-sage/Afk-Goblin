@@ -4,11 +4,15 @@ A modern replacement for the RuneScape 3 [Alt1 Toolkit](https://runeapps.org/alt
 **AfkWarden** — full feature parity, rebuilt UI, multi-chatbox monitoring, and fixes for two
 reliability defects that make the original intermittently unusable.
 
-> **Status:** usable. Installs, imports AfkWarden presets, and 10 of the 16 alerter types are live —
-> covering 106 of the 108 alerts in the reference config. Full preset and alert editing, sound,
-> text-to-speech, local custom sounds, drag-to-reorder and the taskbar countdown all work. Importing
-> a preset that uses one of the remaining 6 types keeps the alert and flags it rather than dropping
-> it silently.
+> **Status:** in use. Installs, imports AfkWarden presets, and 10 of the 16 alerter types are live —
+> covering 106 of the 108 alerts in the reference config, with chat, inactivity, the action bar,
+> buffs and XP all confirmed working against a live client. Full preset and alert editing, sound,
+> text-to-speech, local custom sounds and drag-to-reorder work. Importing a preset that uses one of
+> the remaining 6 types keeps the alert and flags it rather than dropping it silently.
+>
+> **Not carried over:** the taskbar countdown and the hover tooltip. Both were Alt1 APIs with no
+> Bolt equivalent, and Bolt draws into the game view instead — a better home for them, but a design
+> change rather than a port. Tooltips are still collected so nothing depends on them being gone.
 
 ## Install
 
@@ -49,17 +53,21 @@ for the full analysis.
 
 ## What's different
 
-- **Self-healing readers** — positions are invalidated on resize, UI-scale change, `rslinked`, and
-  after consecutive failed reads. Reader health is visible per-alert rather than buried.
+- **Nothing is located by searching a screenshot.** Bolt reads the game's draw calls, so both defects
+  above stop being *expressible* rather than merely being fixed: there are no reader positions to go
+  stale on a resize, and no captured templates to erode. That is the whole reason for the move.
 - **All chatboxes monitored** — the underlying library already detects every open chatbox but only
-  ever reads one. AFK Goblin reads them all, at the cost of a single screen capture per tick.
+  ever reads one. AFK Goblin reads them all.
 - **The whole buff bar is read**, not just the part the game announces. A plugin is told about a
   buff only when its icon is a rendered item model — potions, food, charged items — and hears
   nothing at all for abilities, prayers and familiars, which are drawn as plain sprites. Half a
   measured bar was invisible for that reason alone. Those are now found by reading the draw stream
   directly, so any of them can be watched.
-- **Immutable buff templates** with relative-coverage scoring, so sparse templates aren't
-  structurally disadvantaged and can't decay.
+- **Detection reports what it saw**, not just what it concluded. A panel behind the connection pill
+  carries per-reader counts, and the interesting readings are the zeroes — "looked and found nothing"
+  and "never got to look" need completely different fixes and used to be indistinguishable.
+- **XP comes from the XP counter's own totals**, not from the floating `+N` drops. A drop lingers for
+  about five seconds while it fades, which delayed every inactivity alert by that much.
 - **No backend.** Custom sounds and text-to-speech run locally; nothing calls out to a server.
 - **Real alert grouping**, replacing the widespread workaround of using empty alerts as section
   headers.
@@ -75,12 +83,12 @@ settings, and quick-add premades.
 | `chat` | ✅ |
 | `actionbar` | ✅ |
 | `buffs` | ✅ item-model and sprite-drawn |
-| `xpcounter` | ✅ |
-| `bigxp` | ✅ |
+| `xpcounter` | ✅ total only — see below |
+| `bigxp` | ✅ total only — see below |
 | `clockbased` | ✅ |
-| `dialogtextsimple` | ✅ |
-| `targetdeath` | ✅ |
-| `drops` | ✅ |
+| `dialogtextsimple` | logic ready, no detection yet |
+| `targetdeath` | logic ready, no detection yet |
+| `drops` | logic ready, no detection yet |
 | `craftmenu`, `sheathe`, `castlewars`, `fightkiln`, `summoning`, `necroritual` | needs a custom reader |
 
 Ordered by how much they actually get used: these cover 106 of the 108 alerts in the config this was
