@@ -871,6 +871,51 @@ describe("buff diagnostics", () => {
     plugin.close();
   });
 
+  /**
+   * ONE ABILITY ON THE BAR USED TO LOCK EVERY POTION OUT PERMANENTLY.
+   *
+   * The learned icon-size filter is taught only by the ICON path, but the relearn
+   * gate tested the PUBLISHED lists — which sprite buffs also go into. So a single
+   * ability, prayer or familiar (routine; half the measured bar) pinned the idle
+   * counter at zero forever.
+   *
+   * Then an interface-scale change — RS3 follows window size on Auto, so resizing
+   * the game does it — draws item-model icons at a new size. Every potion, food and
+   * charged item is dropped as implausible, the filter can never be relearned, and
+   * the sprite path cannot recover them either because Bolt removes a recognised
+   * item-model quad from the batch. Exactly the buffs that carry real timers,
+   * undetectable for the rest of the session.
+   */
+  it("relearns the icon size even while a sprite buff keeps the bar occupied", async () => {
+    const plugin = await loadPlugin();
+
+    // Teach 27x27 from the icon path.
+    tick(plugin);
+    plugin.frame([
+      { kind: "icon", models: 3, verts: 77, x: 1456, y: 990, w: 27, h: 27 },
+      { kind: "render2d", images: [{ buff: { valid: true, number: 30, at: [1456, 990] } }] },
+    ]);
+    tick(plugin);
+    expect(buffs(plugin).some((b) => b.id === "3:77")).toBe(true);
+
+    // Now icons arrive at a NEW size, with a sprite buff also on the bar the whole
+    // time. Before the fix the sprite kept resetting the idle counter, so 27x27 was
+    // never forgotten and the 40x40 icon was dropped on every frame forever.
+    for (let i = 0; i < 12; i++) {
+      plugin.frame([
+        spriteBuff({ at: { x: 1516, y: 990 }, texture: "an-ability", number: 60 }),
+        { kind: "icon", models: 4, verts: 88, x: 1456, y: 990, w: 40, h: 40 },
+        { kind: "render2d", images: [{ buff: { valid: true, number: 45, at: [1456, 990] } }] },
+      ]);
+      tick(plugin);
+    }
+
+    const ids = buffs(plugin).map((b) => b.id);
+    expect(ids).toContain("4:88");
+
+    plugin.close();
+  });
+
   it("reads different bytes at different points of one texture", async () => {
     const plugin = await loadPlugin();
 

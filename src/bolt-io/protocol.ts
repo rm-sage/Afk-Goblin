@@ -231,6 +231,14 @@ export const DiagnosticsSchema = z.object({
    */
   xpCoarse: z.boolean().default(false),
   /**
+   * True when a cell sat next to a glyph the font table could not resolve.
+   *
+   * The number read from it may be missing a digit, and a number missing a digit
+   * parses cleanly as a much smaller one — indistinguishable from a real total.
+   * The whole reading is refused when this is set.
+   */
+  xpSuspect: z.boolean().default(false),
+  /**
    * Where each chat anchor candidate was, and what became of it.
    *
    * "Found 2, reading 1" is ambiguous on its own: an 11x11 image is a loose

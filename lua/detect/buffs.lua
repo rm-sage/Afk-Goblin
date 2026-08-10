@@ -160,6 +160,14 @@ local wipicons, wipparsed = 0, 0
 --- hopeful one.
 local attempts, wipattempts = 0, 0
 
+--- Buffs the ICON path read this tick.
+---
+--- Separate from `wipparsed`, which counts both paths, because the learned
+--- icon-size filter is taught only by the icon path and so must be relearned on
+--- the icon path going quiet. Counting sprites here would let one ability on the
+--- bar keep a stale size filter alive forever. See M.request.
+local wipiconparsed = 0
+
 --- Buff and debuff outline colours, restated from modules/buffs/buffs.lua:2-7,
 --- which does not export them. Confirmed present in a live draw stream on
 --- 2026-08-07 as `flat 27x1 #5a9619` — 0x5a,0x96,0x19 is exactly (90,150,25).
@@ -366,7 +374,21 @@ function M.request()
   -- or the bar changed under us -- so forget them and let the next parse teach
   -- them again. An empty buff bar is the common case here and costs only the
   -- unfiltered scan it started with.
-  if #wipbuffs == 0 and #wipdebuffs == 0 then
+  --
+  -- GATED ON THE ICON PATH, NOT ON THE PUBLISHED LISTS, and the difference was a
+  -- permanent silent failure. Sprite-sourced slots go into the same two lists, so
+  -- testing them meant ONE ability, prayer or familiar on the bar -- routine, half
+  -- the measured bar -- pinned idleticks at zero forever. Meanwhile `plausible`
+  -- still gates the icon path and the sizes it filters on are taught only BY the
+  -- icon path. So after an interface-scale change (RS3 follows window size on
+  -- Auto) item-model icons are drawn at a new size, every potion, food and charged
+  -- item is dropped as implausible, the filter can never be relearned because a
+  -- sprite buff keeps resetting the counter, and the sprite path cannot recover
+  -- them either because Bolt removes a recognised item-model quad from the batch.
+  -- Exactly the buffs that carry real timers, undetectable for the rest of the
+  -- session, with no diagnostic beyond buffIconDraws counting draws that produce
+  -- nothing.
+  if wipiconparsed == 0 then
     idleticks = idleticks + 1
     if idleticks >= IDLE_TICKS_BEFORE_RELEARN then
       iconsizes = {}
@@ -380,6 +402,7 @@ function M.request()
   wipbuffs, wipdebuffs = {}, {}
   seen = {}
   wipicons, wipparsed, wipattempts = 0, 0, 0
+  wipiconparsed = 0
   wipunpaired = {}
   wipunpairedseen = {}
   wipoutlines = {}
@@ -545,6 +568,7 @@ function M.onrender2d(event, scanning)
       if ok and valid then
         seen[icon.id] = true
         wipparsed = wipparsed + 1
+        wipiconparsed = wipiconparsed + 1
 
         -- A buff read at this size means this is the size buff icons are drawn
         -- at, so everything else can stop being carried around.
@@ -582,6 +606,7 @@ function M.onrender2d(event, scanning)
           -- entirely and could not be watched for anything.
           seen[icon.id] = true
           wipparsed = wipparsed + 1
+          wipiconparsed = wipiconparsed + 1
           wipclaimed[string.format("%d,%d", icon.x, icon.y)] = true
 
           local slot = { id = icon.id, x = icon.x, source = "icon" }

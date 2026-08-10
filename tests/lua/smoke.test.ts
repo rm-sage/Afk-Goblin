@@ -101,4 +101,40 @@ describe("lua harness", () => {
 
     plugin.close();
   });
+
+  /**
+   * A CLOCK WRAP USED TO READ AS "YOU JUST CLICKED", FOREVER.
+   *
+   * bolt.time() is monotonic microseconds from an arbitrary origin and wraps
+   * roughly hourly on a 32-bit host — main.lua already treats that as live for its
+   * tick gate. The activity anchors are only rewritten by a real input event, so
+   * after a wrap `elapsedms` clamped a negative delta to zero and every snapshot
+   * reported clickIdleMs = 0 until the player physically clicked.
+   *
+   * The browser re-anchors on that each tick, so idleMs never exceeded one tick: an
+   * inactive alert set to nine minutes could NEVER fire and the player is logged out
+   * with no warning. With activeSuppress on it is worse — a stuck zero reads as
+   * "playing" and silences every alarm.
+   */
+  it("keeps measuring idle time after the game clock wraps", async () => {
+    const plugin = await loadPlugin();
+
+    plugin.idle(4, TICK_US);
+    const before = plugin.latest()?.clickIdleMs ?? 0;
+    expect(before).toBeGreaterThan(0);
+
+    // The wrap: the clock restarts behind the anchors, leaving them in the future.
+    plugin.eval(`driver.time = 0`);
+    plugin.idle(1, TICK_US);
+
+    // Several ticks later idle time must be growing again rather than stuck at 0.
+    plugin.idle(3, TICK_US);
+    const after = plugin.latest()?.clickIdleMs ?? -1;
+    expect(after).toBeGreaterThan(0);
+
+    plugin.idle(3, TICK_US);
+    expect(plugin.latest()?.clickIdleMs ?? -1).toBeGreaterThan(after);
+
+    plugin.close();
+  });
 });

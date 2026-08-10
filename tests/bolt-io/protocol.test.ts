@@ -118,6 +118,7 @@ describe("decodePluginMessage", () => {
       xpCounterFound: false,
       xpCells: [],
       xpCoarse: false,
+      xpSuspect: false,
       chatAnchors: [],
     });
   });

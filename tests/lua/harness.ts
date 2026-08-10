@@ -502,6 +502,16 @@ export function fontRun(
   at: { x: number; y: number },
   gap = 7,
   atlasBase = 700,
+  /**
+   * Column index to draw at a known glyph height but WITHOUT a resolvable
+   * character, modelling a glyph the font table does not cover.
+   *
+   * `chatchars` is hand-derived for the CHAT font while several interfaces use
+   * their own, so an unresolvable glyph is a live possibility rather than a
+   * hypothetical — and a number missing a digit parses cleanly as a much smaller
+   * one.
+   */
+  unresolvableAt?: number,
 ): ImageSpec[] {
   const images: ImageSpec[] = [];
   const atlas = new Map<string, number>();
@@ -519,8 +529,18 @@ export function fontRun(
     // A descender's bottom lands BELOW it, which is what breaks a run grouped on
     // too tight a tolerance.
     const y = at.y - ah + (GLYPH_DESCENT[ch] ?? 0);
-    images.push({ ax, ay: 300, aw: 6, ah, x, y, char: ch, tint: [0, 0, 0] });
-    images.push({ ax, ay: 300, aw: 6, ah, x: x + 1, y, char: ch, tint: [255, 255, 255] });
+    // Its height still passes the font-table filter — it is drawn text — but no
+    // character resolves for it, which is the case the reader has to refuse.
+    const resolvable = col !== unresolvableAt;
+    const glyph = resolvable ? ch : undefined;
+    // A DISTINCT ATLAS SLOT WHEN UNRESOLVABLE. The fake font lookup is handed
+    // atlas coordinates, exactly as the real one is, and answers from whichever
+    // image occupies them — so reusing the character's shared slot would let a
+    // sibling instance of the same letter resolve it and the glyph would not be
+    // unresolvable at all.
+    const slot = resolvable ? ax : atlasBase + 900 + col;
+    images.push({ ax: slot, ay: 300, aw: 6, ah, x, y, char: glyph, tint: [0, 0, 0] });
+    images.push({ ax: slot, ay: 300, aw: 6, ah, x: x + 1, y, char: glyph, tint: [255, 255, 255] });
   });
 
   return images;

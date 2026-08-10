@@ -68,6 +68,27 @@ local function elapsedms(since, now)
   return math.floor(delta / 1000)
 end
 
+--- Re-base an activity anchor that a clock wrap has left in the future.
+---
+--- CLAMPING THE DURATION WAS NOT ENOUGH, AND IT SILENCED THE MOST IMPORTANT
+--- ALERT. `lastclick` and `lastmove` are only rewritten by a real input event, so
+--- after bolt.time() wraps -- roughly hourly on a 32-bit host, which this file
+--- already treats as live for `lasttick` below -- every snapshot reported
+--- clickIdleMs = 0 until the player physically clicked. The browser re-anchors on
+--- that each tick, so idleMs never exceeded a tick: an inactive alert set to nine
+--- minutes could NEVER fire and the player is logged out for idleness with no
+--- warning. With activeSuppress on it is worse, because a stuck zero reads as
+--- "playing" and silences every alarm permanently.
+---
+--- Re-basing costs one lost interval -- the alert fires up to `delay` late, once --
+--- instead of never firing again. The field cannot simply be omitted to signal the
+--- wrap: clickIdleMs is deliberately non-defaulted on the wire, so a missing key
+--- would fail the whole snapshot.
+local function rebase(anchor, now)
+  if now < anchor then return now end
+  return anchor
+end
+
 -- Activity timers.
 --
 -- Bolt exposes no keyboard events, so activity is mouse-derived: clicks, motion
@@ -179,6 +200,11 @@ bolt.onswapbuffers(function ()
   local now = bolt.time()
   if now >= lasttick and now - lasttick < TICK_US then return end
   lasttick = now
+
+  -- A wrap leaves the activity anchors in the future, and a clamped duration then
+  -- reads as "you just clicked" forever. See `rebase`.
+  lastclick = rebase(lastclick, now)
+  lastmove = rebase(lastmove, now)
   tick = tick + 1
 
   -- Close the tick that just ended and open the next.
@@ -247,6 +273,7 @@ bolt.onswapbuffers(function ()
     xpCounterFound = xpdiag.found,
     xpCells = xpdiag.cells,
     xpCoarse = xpdiag.coarse,
+    xpSuspect = xpdiag.suspect,
   }
 
   link:send({

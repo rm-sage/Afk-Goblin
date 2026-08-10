@@ -36,6 +36,25 @@ export class GameStateView {
     const s = this.snapshot.state;
     if (s === null) return NO_STATE;
 
+    // A STALE SNAPSHOT IS NOT A READING, and this is the one place that can say
+    // so for every alerter at once.
+    //
+    // The store retains the last snapshot forever on purpose, so the UI can show
+    // what it last saw. Handing that to alerters is a different matter: the login
+    // gate fails open when disconnected, so they keep evaluating a frozen reading.
+    // `xpTotals` freezes, `readXp` returns a number rather than null, and five
+    // seconds later every xpcounter alert fires with functional:true — which is
+    // exactly the "a blind reader is indistinguishable from XP stopped"
+    // dishonesty that switching XP to a level was supposed to remove. The same
+    // freeze leaves an action-bar alert reporting a healthy badge off a
+    // minutes-old reading while health drops in game.
+    //
+    // Some alerters check ctx.connected themselves (buffs, inactive) and some do
+    // not (actionbar, xpcounter, misc). Gating here rather than there is what
+    // makes it uniform, and it gives `ageMs` the production consumer it was
+    // written for.
+    if (!this.snapshot.connected) return NO_STATE;
+
     return {
       stats: s.stats,
       buffs: s.buffs,

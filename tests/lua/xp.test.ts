@@ -206,6 +206,83 @@ describe("XP counter reading", () => {
   });
 
   /**
+   * REPLACED ALL THREE XP CELLS WITH SOMEBODY ELSE'S NUMBERS.
+   *
+   * The bound used to be min/max over every run sharing the header's baseline, not
+   * over the header runs — so one unrelated run within 6px of the header baseline
+   * collapsed the left edge, and the row filter then admitted everything to its
+   * left. A left-hand column of plain numbers on an ordinary 27px pitch became the
+   * leftmost run on each row and won.
+   *
+   * The failure is confident, not blank: found=true, coarse=false, a plausible
+   * total. And a foreign number that drifts upward while XP is static resets the
+   * inactivity timer on every step, so the alert NEVER fires.
+   */
+  it("ignores a foreign column of numbers to the left of the counter", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: [
+          ...counter({ x: 3041, y: 1111 }, [
+            ["170,102", "73,798", "-"],
+            ["37,138,020", "40,096", "9w"],
+            ["27,489,279", "60,326", "7w"],
+          ]),
+          // A column far to the left, on the header baseline and on each row's,
+          // exactly as an inventory or interface readout would be.
+          ...fontRun("1000", { x: 400, y: 1112 }, 7, 6000),
+          ...fontRun("1001", { x: 400, y: 1139 }, 7, 6200),
+          ...fontRun("1002", { x: 400, y: 1166 }, 7, 6400),
+          ...fontRun("1003", { x: 400, y: 1193 }, 7, 6600),
+        ],
+      },
+    ]);
+    tick(plugin);
+
+    expect(totals(plugin)).toEqual({ tot: 170102 + 37138020 + 27489279 });
+    expect(plugin.latest()?.diag.xpCells).toEqual(["170,102", "37,138,020", "27,489,279"]);
+
+    plugin.close();
+  });
+
+  /**
+   * A NUMBER MISSING A DIGIT IS NOT A SMALLER NUMBER, IT IS UNREADABLE.
+   *
+   * An unresolvable glyph used to be skipped with no record, and because the
+   * position trackers only advanced for resolved glyphs the skipped one's width
+   * became a gap that also ended the run — silently. "37,138,020" with one interior
+   * glyph missing published 371 as an exact total. `chatchars` is hand-derived for
+   * the CHAT font while the counter is a different interface, so this is a live
+   * possibility, and both XP alerters would measure the user's thresholds against
+   * the fragment.
+   */
+  it("refuses a reading whose cell sat next to an unresolvable glyph", async () => {
+    const plugin = await loadPlugin();
+
+    tick(plugin);
+    plugin.frame([
+      {
+        kind: "render2d",
+        images: [
+          ...fontRun("XP", { x: 3041, y: 1111 }, 7, 700),
+          // "37,138,020" with the '1' of 138 drawn but unresolvable.
+          ...fontRun("37,138,020", { x: 3041, y: 1136 }, 7, 1300, 4),
+        ],
+      },
+    ]);
+    tick(plugin);
+
+    expect(totals(plugin)).toBeNull();
+    expect(plugin.latest()?.diag.xpSuspect).toBe(true);
+    expect(plugin.latest()?.diag.xpCounterFound).toBe(true);
+
+    plugin.close();
+  });
+
+  /**
    * "37.1M" is a real reading but a coarse one: it only moves on a gain of tens of
    * thousands, so an inactivity alert built on it would fire while training
    * continues. Reported with a reason rather than acted on.

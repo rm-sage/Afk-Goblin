@@ -58,6 +58,9 @@ local totals, wiptotals = nil, nil
 local cells, wipcells = {}, {}
 local found, wipfound = false, false
 local coarse, wipcoarse = false, false
+--- Set when a cell sat next to a glyph the font table could not resolve, so the
+--- number read from it may be missing a digit. See the note at the parse site.
+local suspect, wipsuspect = false, false
 
 --- Publish what the tick gathered, then start clean.
 ---
@@ -69,11 +72,13 @@ function M.request()
   cells = wipcells
   found = wipfound
   coarse = wipcoarse
+  suspect = wipsuspect
 
   wiptotals = nil
   wipcells = {}
   wipfound = false
   wipcoarse = false
+  wipsuspect = false
 end
 
 --- The XP totals read on the last tick, or nil when the counter was not readable.
@@ -87,7 +92,7 @@ end
 
 --- What the last tick saw, for the detection panel.
 function M.diagnostics()
-  return { found = found, cells = cells, coarse = coarse }
+  return { found = found, cells = cells, coarse = coarse, suspect = suspect }
 end
 
 --- Read the counter out of one batch.
@@ -107,8 +112,16 @@ function M.onrender2d(event, scanning)
   -- Collected first, then reasoned about. Runs arrive in draw order, which is not
   -- reading order, so rows cannot be assembled on the fly.
   local runs = {}
-  text.scan(event, function (run, box)
-    runs[#runs + 1] = { text = run, left = box.left, right = box.right, bottom = box.bottom }
+  -- `issuspect` rather than `suspect`, which is a module-level local this would
+  -- otherwise shadow.
+  text.scan(event, function (run, box, issuspect)
+    runs[#runs + 1] = {
+      text = run,
+      left = box.left,
+      right = box.right,
+      bottom = box.bottom,
+      suspect = issuspect == true,
+    }
   end)
   if #runs == 0 then return end
 
@@ -123,23 +136,46 @@ function M.onrender2d(event, scanning)
 
   wipfound = true
 
-  -- THE HEADER ROW'S OWN X-SPAN BOUNDS THE TABLE, and it has to.
+  -- THE TABLE IS BOUNDED BY THE "XP" HEADER'S OWN LEFT EDGE, and it has to be.
   --
   -- Confirmed by a live reading on 2026-08-09: the counter and the CHAT BOX are
   -- drawn in the same render2d batch (both batch 23), so every chat line is a
-  -- candidate row. It happened to work because the "Gain" header sorts above them
-  -- and stops the scan first -- which is luck, not a design. Close the GP table
-  -- and chat would have been read as XP.
+  -- candidate row. It read correctly only because the "Gain" header sorts above the
+  -- chat log and ended the scan first, which is luck rather than a design.
   --
-  -- The bound is derived rather than invented: cells are left-aligned under their
-  -- headers, so a cell's left edge falls inside the span the header row occupies.
-  -- In that reading the headers run 3041..3237 while chat sits at x=10 and x=638
-  -- and the summoning readout at 2384 -- all comfortably outside.
+  -- ANCHORED ON THE "XP" RUN, NOT ON EVERYTHING SHARING ITS BASELINE. A previous
+  -- version took min/max over every run within the baseline tolerance -- which
+  -- contradicted this very comment -- so ONE unrelated run whose baseline landed
+  -- within six pixels of the header collapsed the left bound from 3041 to that
+  -- run's x, and the row filter then admitted everything to its left.
+  --
+  -- The consequence was not "no data". A foreign column of plain numbers on an
+  -- ordinary 27px pitch REPLACED all three XP cells -- reproduced through the real
+  -- plugin, publishing 3,006 against a true 64,797,401, with xpCounterFound true
+  -- and xpCoarse false. Confidently wrong. And if such a number drifts upward while
+  -- XP is static, xpcounter resets its timer on every step and the inactivity alert
+  -- NEVER fires.
+  --
+  -- The XP column is leftmost, so its header IS the left edge. Extending right only
+  -- over runs at or right of it keeps the other columns in while letting nothing to
+  -- the left widen the span. In that reading the headers run 3041..3237 while chat
+  -- sits at x=10 and x=638 and the summoning readout at 2384.
+  -- The XP column is leftmost, so its header is the left edge by definition.
+  -- Extending right only over runs at or right of it keeps the other columns in
+  -- while letting nothing to the left widen the span.
   local headerleft, headerright = nil, nil
   for _, r in ipairs(runs) do
-    if math.abs(r.bottom - headerbottom) <= text.BASELINE_TOLERANCE then
+    if r.text == HEADER and math.abs(r.bottom - headerbottom) <= text.BASELINE_TOLERANCE then
       if headerleft == nil or r.left < headerleft then headerleft = r.left end
       if headerright == nil or r.right > headerright then headerright = r.right end
+    end
+  end
+  if headerleft == nil then return end
+
+  for _, r in ipairs(runs) do
+    if math.abs(r.bottom - headerbottom) <= text.BASELINE_TOLERANCE
+      and r.left >= headerleft and r.right > headerright then
+      headerright = r.right
     end
   end
 
@@ -176,6 +212,12 @@ function M.onrender2d(event, scanning)
       local n, c = text.number(r.text)
       if n ~= nil then
         value, wascoarse, cell = n, c, r.text
+        -- A RUN NEXT TO AN UNRESOLVABLE GLYPH IS A FRAGMENT, NOT A SMALLER NUMBER.
+        -- "37,138,020" missing one digit parses cleanly as 3,713,802 or 371, which
+        -- is indistinguishable from a real total and orders of magnitude out. The
+        -- whole reading is refused below rather than this cell being skipped,
+        -- because dropping a row would silently undercount the sum instead.
+        if r.suspect then wipsuspect = true end
         break
       end
     end
@@ -211,6 +253,10 @@ function M.onrender2d(event, scanning)
   -- training continues. Reported with a reason -- widen the counter -- rather than
   -- acted on.
   if wipcoarse then return end
+
+  -- A fragment is refused for the same reason an abbreviation is: it is a number
+  -- that parses cleanly and is wrong, which every alerter would diff as real.
+  if wipsuspect then return end
 
   -- Summed across rows and published under "tot" only. A row is identified by its
   -- skill ICON, and reading that means hashing the sprite and having the user bind

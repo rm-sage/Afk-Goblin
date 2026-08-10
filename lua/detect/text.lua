@@ -49,7 +49,21 @@ M.MAX_GLYPH_GAP = 6
 --- at 27 pixels (1136, 1163, 1190).
 M.BASELINE_TOLERANCE = 6
 
---- Walk one batch and hand every run of glyphs to `onrun(text, box)`.
+--- Walk one batch and hand every run of glyphs to `onrun(text, box, suspect)`.
+---
+--- `suspect` is true when a glyph adjacent to this run could not be resolved, and
+--- a caller reading a NUMBER must refuse the run rather than use it.
+---
+--- WHY, AND IT WAS A CONFIDENTLY WRONG TOTAL. An unresolvable glyph used to be
+--- skipped with no record, and because the position trackers are only updated for
+--- resolved glyphs the skipped one's width became a gap that exceeded
+--- MAX_GLYPH_GAP -- so the run silently ENDED there too. "37,138,020" with one
+--- interior glyph missing from the font table published 371 as an exact total, and
+--- `chatchars` is a hand-derived table for the CHAT font while the XP counter is a
+--- different interface, so a weight or size it does not cover yields a stable value
+--- orders of magnitude too small. Both XP alerters then measure the user's
+--- thresholds against a fragment, and if resolution is intermittent the total
+--- oscillates upward on every recovery and the inactivity alert never fires.
 ---
 --- `box` is `{ left, right, top, bottom }` in screen pixels. Runs arrive in draw
 --- order, which is not reading order -- a caller that needs rows must group them
@@ -64,10 +78,14 @@ function M.scan(event, onrun)
 
   local run, runbox = nil, nil
   local lastleft, lastright, lastbottom, lasttop, lastax, lastay
+  --- Set when a glyph could not be resolved, so the next run it touches is
+  --- reported as suspect. Cleared once that run has been handed over.
+  local dropped = false
 
   local function flush()
-    if run ~= nil and #run > 0 then onrun(run, runbox) end
+    if run ~= nil and #run > 0 then onrun(run, runbox, dropped) end
     run, runbox = nil, nil
+    dropped = false
   end
 
   for i = 1, vertexcount, vpi do
@@ -112,6 +130,15 @@ function M.scan(event, onrun)
 
             lastleft, lastright, lastbottom, lasttop = left, right, bottom, top
             lastax, lastay = ax, ay
+          else
+            -- Drawn at a glyph height the font table knows, yet not resolvable.
+            -- Whatever run it sat in is now missing a character, and a number
+            -- missing a digit is not a smaller number -- it is unreadable. End the
+            -- run here deliberately and mark it, rather than letting the gap do it
+            -- silently.
+            dropped = true
+            flush()
+            dropped = true
           end
         end
       end
