@@ -123,8 +123,32 @@ export class TickLoop {
 
   constructor(private readonly deps: LoopDeps) {}
 
+  /**
+   * Rebuild the active list, KEEPING the runtime of every alert that is unchanged.
+   *
+   * REINSTANTIATING EVERYTHING WAS A SPURIOUS-ALERT LOOP. Every edit to a preset
+   * — reordering by drag, pausing one alert, renaming a group — calls this, and
+   * building a fresh runtime throws away all of an alerter's internal state:
+   * `lastChangeAt`, `triggeredAt`, `seeded`, the buff countdown anchor. So
+   * dragging ANY alert, even one whose position did not change, reset the progress
+   * of every alert on the list.
+   *
+   * That is merely untidy for a countdown and actively wrong for `xpcounter`,
+   * which measures "no XP for N seconds": at 100% a drag reset it to zero, it
+   * climbed back to 100%, and fired again — repeating for as long as no XP was
+   * gained. Reported in game.
+   *
+   * Matching is by object IDENTITY rather than by value, which is exactly the
+   * distinction wanted. `applyDrop` returns the same config objects reordered and
+   * pause toggles mutate one in place, so both keep their runtime; the editor
+   * hands back a NEW object for an alert whose settings changed, so that one is
+   * correctly rebuilt and re-seeded.
+   */
   setAlerters(configs: readonly AlerterBase[]): void {
-    this.alerters = configs.map(instantiate);
+    const existing = new Map<AlerterBase, ActiveAlerter>();
+    for (const a of this.alerters) existing.set(a.config, a);
+
+    this.alerters = configs.map((config) => existing.get(config) ?? instantiate(config));
   }
 
   /** Set when every alert is being held, e.g. because the player is logged out. */

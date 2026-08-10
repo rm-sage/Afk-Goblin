@@ -157,4 +157,61 @@ describe("TickLoop", () => {
 
     expect(loop.heldReason).toBeNull();
   });
+
+  /**
+   * DRAGGING ANY ALERT USED TO RESET EVERY ALERT'S PROGRESS.
+   *
+   * Every preset edit — a reorder, a pause, a group rename — calls setAlerters,
+   * and rebuilding each runtime discards its internal state. Merely untidy for a
+   * countdown; actively wrong for xpcounter, which measures "no XP for N seconds":
+   * at 100% a drag reset it to zero, it climbed back, and fired AGAIN, repeating
+   * for as long as no XP was gained. Reported in game.
+   */
+  it("keeps an alerter's progress when the list is merely reordered", () => {
+    let now = 0;
+    const alerts = [
+      AlerterBaseSchema.parse({ name: "idle", type: "inactive", vars: { delay: 10 } }),
+      AlerterBaseSchema.parse({ name: "other", type: "inactive", vars: { delay: 10 } }),
+    ];
+
+    const loop = new TickLoop({
+      now: () => now,
+      idleMs: () => 6_000,
+      mouseIdleMs: () => 6_000,
+      connected: () => true,
+      loggedIn: () => true,
+    });
+    loop.setAlerters(alerts);
+    loop.step();
+
+    const before = loop.alerters[0]!;
+    const bar = before.state.bar;
+    expect(bar).toBeCloseTo(0.6, 5);
+
+    // The same objects, in the other order — which is what applyDrop produces.
+    loop.setAlerters([alerts[1]!, alerts[0]!]);
+
+    // Same runtime instance, not a fresh one.
+    expect(loop.alerters[1]).toBe(before);
+    expect(loop.alerters[1]!.state.bar).toBeCloseTo(bar, 5);
+  });
+
+  /** An alert whose settings changed is a new object, and must be rebuilt. */
+  it("rebuilds an alerter whose config was replaced", () => {
+    const original = AlerterBaseSchema.parse({ name: "idle", type: "inactive", vars: { delay: 10 } });
+    const loop = new TickLoop({
+      now: () => 0,
+      idleMs: () => 0,
+      mouseIdleMs: () => 0,
+      connected: () => true,
+      loggedIn: () => true,
+    });
+    loop.setAlerters([original]);
+    const before = loop.alerters[0]!;
+
+    const edited = AlerterBaseSchema.parse({ name: "idle", type: "inactive", vars: { delay: 30 } });
+    loop.setAlerters([edited]);
+
+    expect(loop.alerters[0]).not.toBe(before);
+  });
 });
